@@ -1,0 +1,23 @@
+OUTREACH.md
+  s_8405c01889c58a::t_f7dc078250ec76 21
+ROADMAP.md
+  s_8405c01889c58a::t_fc926cd337931a 39,41-52
+README.md
+  s_8405c01889c58a::t_84c95cea7e1e21 19-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "644fc71bd4eafe2c6f1904af1b282e83d660be6d",
+  "prompts": {},
+  "sessions": {
+    "s_8405c01889c58a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f6ce3fe-49d9-4d5c-84fe-9a216a986243",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "anh nguyen <anh.nqqq@icloud.com>"
+    }
+  }
+}
