@@ -67,6 +67,17 @@ pytest -q                                # correctness gate
 Real DP1: `examples/tap_query_external.py` (RSP token) → `examples/run_on_dp1.py`.
 GPU run: `COLAB.md`. Full roadmap: `ROADMAP.md`.
 
+## Where this fits — the field, the data, the money
+
+This plugs into the funded mainstream of AI-for-cosmology and the Rubin data flow:
+
+- **The data:** Rubin [DP1](https://dp1.lsst.io/) (now) → DP2 (~3000 deg², this summer) → DR1 (billions) — [rubinobservatory.org](https://rubinobservatory.org/).
+- **The pipeline:** built to drop into DESC's [TXPipe](https://github.com/LSSTDESC/TXPipe) (3×2pt) and validate against [CCL](https://github.com/LSSTDESC/CCL).
+- **The AI push:** the DESC [*AI/ML Opportunities* white paper (2026)](https://arxiv.org/abs/2601.14235); AI-for-physics institutes like [IAIFI](https://iaifi.org/) (ML for dark-matter subhalos) and the NSF-Simons **CosmicAI** institute (AI for cosmic discovery on the largest academic GPU cluster).
+- **The compute & money:** NSF + NVIDIA "open AI for science" (~$152M), NSF AI Institutes, and free GPU via **NAIRR** / DOE exascale.
+
+Same idea, one rung at a time: **GPU acceleration (CuPy) for the Rubin data deluge, extended toward AI / field-level inference** — exactly the direction these efforts are funded to pursue.
+
 ## Status & honest limits
 
 GPU `w(θ)` is validated (`GPU ≡ CPU ≡ TreeCorr ≡ theory`) and runs on real DP1.
