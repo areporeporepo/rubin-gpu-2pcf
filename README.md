@@ -8,8 +8,9 @@ The angular two-point correlation function `w(θ)` is the galaxy-clustering leg 
 an LSST **3×2pt** cosmology analysis, and it rests on **O(N²) pair counting** — the
 CPU bottleneck as catalogs grow toward billions of objects. We implement `w(θ)`
 (Landy–Szalay) on the **GPU** (CuPy) behind a **provably-correct block-pruning
-cell-list**: the GPU result is **bit-for-bit identical to the CPU implementation**
-(validated on a Tesla T4, **~31–39× faster**) and recovers a known **analytic**
+cell-list**: the GPU result is **bit-for-bit identical to CPU** (max rel. diff
+0.00e+00), **cross-checked against TreeCorr** (median rel. diff 2.7×10⁻⁴) on a
+Tesla T4, **~30–50× faster** (49.7× at N=20k), and recovers a known analytic
 correlation to **~6%**. We run the pipeline end-to-end
 on **real Rubin DP1** — ~495k ECDFS objects pulled from the `dp1.Object` TAP
 service. It is built as a drop-in GPU backend for DESC's **TXPipe**. The immediate
@@ -30,10 +31,9 @@ load → process → analyze → visualize path.
 ![Validation against theory](assets/validation.png)
 
 **Figure 2.** Validation: the GPU-measured `w(θ)` (points) recovers the known input
-analytic correlation (line) to ~6%, and is **bit-for-bit identical to the CPU
-implementation** (confirmed on a Tesla T4, `max rel. diff 0.00e+00`) — `GPU ≡ CPU`.
-*(TreeCorr cross-check: the estimator matches TreeCorr's `NNCorrelation` by
-construction; numerical comparison is a one-line re-run with `treecorr` installed.)*
+analytic correlation (line) to ~6%, is **bit-for-bit identical to CPU** (Tesla T4,
+`max rel. diff 0.00e+00`), and is **cross-checked against TreeCorr** (median rel.
+diff `2.7×10⁻⁴`) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`.
 
 ## Run
 

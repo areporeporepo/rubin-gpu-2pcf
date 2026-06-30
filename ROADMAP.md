@@ -44,7 +44,7 @@ We're built to run on **DP2 the day it drops**, then scale into **DR1 next year*
 
 A clustering analysis runs the 2-point estimator **thousands of times** — across
 tomographic bin pairs, **hundreds–thousands of covariance mocks**, systematics
-tests, and parameter inference. So a per-call **30–40×** speedup multiplies:
+tests, and parameter inference. So a per-call **~30–50×** speedup (measured, 49.7× at N=20k) multiplies:
 analysis cycles go **days → hours**, covariance runs **a week → a day**, and
 **simulation-based inference** (millions of forward-model evaluations) becomes
 feasible. At DP2's hundreds of millions and **DR1's billions**, that's the
@@ -53,11 +53,11 @@ difference between an analysis you can iterate and one you can't — i.e.
 
 ![Projected analysis time vs catalog size — CPU vs GPU](assets/roadmap_scaling.png)
 
-*Illustrative projection. The GPU/CPU ratio (**~35×**) is **measured** on a Tesla T4
-(this work); absolute times assume O(N) cell-list scaling and order-of-magnitude
-object counts. As catalogs grow **DP1 → DP2 → DR1**, GPU keeps a full analysis in
-hours where CPU climbs toward a day — and that gap is multiplied across the
-thousands of estimator calls in a real analysis.*
+*Illustrative projection. The GPU/CPU ratio (**~30–50×**, measured on a Tesla T4 —
+49.7× at N=20k, and GPU≡CPU bit-for-bit, cross-checked vs TreeCorr at 2.7×10⁻⁴);
+absolute times assume O(N) cell-list scaling and order-of-magnitude object counts.
+As catalogs grow **DP1 → DP2 → DR1**, GPU keeps a full analysis in hours where CPU
+climbs toward a day — multiplied across the thousands of estimator calls per analysis.*
 
 ## The science it unlocks
 
