@@ -1,0 +1,29 @@
+twopcf/visualize.py
+  s_8405c01889c58a::t_5b074480739ae2 1-107
+examples/make_visualization.py
+  s_8405c01889c58a::t_a1fc722faf346c 1-62
+twopcf/tomographic.py
+  s_8405c01889c58a::t_8787955e0fea65 1-66
+IMPACT_BRIEF.md
+  s_8405c01889c58a::t_2373a1d46c4bb4 1-46
+OUTREACH.md
+  s_8405c01889c58a::t_0182a01fa9150f 3-4,7-9,11,13,17-25,28-61,66-67
+  s_8405c01889c58a::t_bec5ceed09dec6 5-6,10
+  s_8405c01889c58a::t_81ca56e878682f 1-2,12,14-16,26-27,62-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "c6452412a9d54ea890c3558eef49acada2de08dd",
+  "prompts": {},
+  "sessions": {
+    "s_8405c01889c58a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f6ce3fe-49d9-4d5c-84fe-9a216a986243",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "anh nguyen <anh.nqqq@icloud.com>"
+    }
+  }
+}
