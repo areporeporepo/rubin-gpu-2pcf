@@ -42,10 +42,12 @@ of times per analysis → **time-to-science**. Full detail: [ROADMAP.md](ROADMAP
 
 - [x] **GPU 2-point clustering** (CuPy) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`, ~30–50× (Tesla T4)
 - [x] **Real DP1** end-to-end — `dp1.Object` via TAP → w(θ) (~495k ECDFS)
+- [~] **Tomographic w(θ)** (`twopcf/tomographic.py`) — photo-z-binned clustering, the Rubin analog of DESI's 3D 3×2pt; the density leg of a tomographic 3×2pt, scaling to DP2's ~3000 deg²
+- [~] **AI / field-level inference (SBI)** (`twopcf/sbi.py`) — GPU forward-model → **neural posterior**. Production trains on **10⁴–10⁵ forward models** — which is *why* it needs the GPU cluster (CPU can't). DP2-ready (`dp2.Object`, S3DF A100/H100)
 - [~] **cuPhoton-style FITS ingestion** (`fitsio_gpu/`, kvikio + nvCOMP) — built, CPU-verified
-- [~] **AI / field-level inference (SBI)** (`twopcf/sbi.py`) — GPU forward-model → infer a parameter from clustering; **DP2-ready** (same pipeline on `dp2.Object`, on S3DF A100/H100)
-- [ ] **Tomographic 3×2pt** at DP2 scale on S3DF (A100/H100)
 - [ ] **GNN / field-level** inference on Rubin catalogs (DR1)
+
+**The DP2/DR1 goal:** tomographic 3×2pt + simulation-based inference. SBI replaces hand-built likelihoods by training a **neural posterior on 10⁴–10⁵ GPU forward-models** — feasible only on a GPU cluster (S3DF now → Rubin/NVIDIA Blackwell by 2027). Tomographic w(θ) in photo-z bins is the Rubin counterpart of DESI's spectroscopic clustering.
 
 *`[x]` done · `[~]` in progress · `[ ]` planned. AI/field-level is where the field is pushing (DESC AI/ML white paper, 2026) — same CuPy acceleration, applied beyond two-point.*
 
