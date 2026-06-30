@@ -48,6 +48,17 @@ GPU run: `COLAB.md`.
 
 **Where this is going → [ROADMAP.md](ROADMAP.md):** DP1 (now) → DP2 (~3000 deg², this summer) → DR1 (billions). One estimator today; the GPU layer the Rubin data deluge needs.
 
+## Tracks toward DP2 / DR1
+
+- [x] **GPU 2-point clustering** (CuPy) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`, ~30–50× (Tesla T4)
+- [x] **Real DP1** end-to-end — `dp1.Object` via TAP → w(θ) (~495k ECDFS)
+- [~] **cuPhoton-style FITS ingestion** (`fitsio_gpu/`, kvikio + nvCOMP) — built, CPU-verified
+- [~] **AI / field-level inference (SBI)** (`twopcf/sbi.py`) — scaffold: GPU forward-model → infer a parameter from clustering (the dark-energy/dark-matter SBI workflow in miniature)
+- [ ] **Tomographic 3×2pt** at DP2 scale on S3DF (A100/H100)
+- [ ] **GNN / field-level** inference on Rubin catalogs (DR1)
+
+*Legend: `[x]` done · `[~]` in progress · `[ ]` planned. AI/field-level is where the field is pushing (DESC AI/ML white paper, 2026) — same GPU acceleration, applied beyond two-point.*
+
 ## Status & honest limits
 
 Phase 1: validated GPU `w(θ)` + cell-list + real-DP1 path. Brute force is O(N²)

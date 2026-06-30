@@ -70,8 +70,11 @@ climbs toward a day — multiplied across the thousands of estimator calls per a
 ## Phases
 
 - **Phase 1 — ✅ this repo.** Validated GPU `w(θ)`, cell-list, real-DP1 path.
-- **Phase 2 — satellite DM + SBI.** GPU/JAX forward model over Symphony subhalos →
-  a dark-matter limit; the inference loop is the real bottleneck the field feels.
+- **Phase 2 — AI / field-level inference (started).** `twopcf/sbi.py` scaffolds the
+  SBI loop: the GPU w(θ) forward-model generates (summary-stat → parameter) pairs to
+  learn the inverse. Extends to **GNNs on galaxy catalogs** and **satellite-DM SBI**
+  over Symphony subhalos → a dark-matter limit — the inference loop is the real
+  bottleneck the field feels, and the GPU forward-model is what makes it tractable.
 - **Phase 3 — production.** GPU backend merged into TXPipe; tomographic 3×2pt at
   DR1 scale on NERSC/SLAC; the open, validated GPU path for Rubin cosmology.
 
