@@ -83,6 +83,11 @@ Same idea, one rung at a time: **GPU acceleration (CuPy) for the Rubin data delu
 
 ## Status & honest limits
 
+**GPU by default.** The code auto-selects the GPU when one is present (e.g. KIPAC's
+S3DF A100/H100) — that's the deployment path. The CPU path exists only as the
+**bit-for-bit validation reference and speedup baseline** (and so it runs on a
+laptop / in CI), not as a deployment target. Same code, one `xp` (CuPy↔NumPy).
+
 GPU `w(θ)` is validated (`GPU ≡ CPU ≡ TreeCorr ≡ theory`) and runs on real DP1.
 The AI/SBI track is an early scaffold (ridge baseline; a neural posterior estimator
 is the upgrade). Brute force is O(N²) — the cell-list scales past it; a science-grade
