@@ -27,8 +27,10 @@ Rubin **Data Preview 2** lands **July–September 2026** — the first data from
 area**, and the **first Rubin dataset large enough for a survey-scale `w(θ)`
 measurement**. It's also where catalogs first get big enough that **CPU
 pair-counting starts to hurt** — i.e., where this engine earns its keep. We're
-built to run on **DP2 the day it drops**. This is the near-term milestone
-everything here points at.
+built to run on **DP2 the day it drops** — including the **AI/field-level SBI loop**
+(`twopcf/sbi.py`), which is DP2-ready: the same pipeline points at `dp2.Object`
+(`RUBIN_RELEASE=dp2`), now on S3DF A100/H100 instead of a laptop. This is the
+near-term milestone everything here points at.
 
 ## The trajectory — locked to Rubin's releases
 
@@ -53,11 +55,12 @@ difference between an analysis you can iterate and one you can't — i.e.
 
 ![Projected analysis time vs catalog size — CPU vs GPU](assets/roadmap_scaling.png)
 
-*Illustrative projection. The GPU/CPU ratio (**~30–50×**, measured on a Tesla T4 —
-49.7× at N=20k, and GPU≡CPU bit-for-bit, cross-checked vs TreeCorr at 2.7×10⁻⁴);
-absolute times assume O(N) cell-list scaling and order-of-magnitude object counts.
-As catalogs grow **DP1 → DP2 → DR1**, GPU keeps a full analysis in hours where CPU
-climbs toward a day — multiplied across the thousands of estimator calls per analysis.*
+*Illustrative. The Tesla-T4 ratio (**~30–50×**; 49.7× at N=20k, GPU≡CPU bit-for-bit,
+TreeCorr 2.7×10⁻⁴) is **measured** in this work. On the hardware we'd actually use —
+**SLAC S3DF A100/H100 or Stanford Marlowe** (~4–8× a T4) — the projected speedup is
+**~150×+**, and by **DR1 (2027)** on next-gen (Blackwell-class) GPUs, higher still.
+Absolute times assume O(N) cell-list scaling + order-of-magnitude counts; the gap is
+multiplied across the thousands of estimator calls per analysis.*
 
 ## The science it unlocks
 

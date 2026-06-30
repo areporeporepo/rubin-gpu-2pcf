@@ -14,7 +14,12 @@ from __future__ import annotations
 
 import os
 
-# real DP1 extragalactic fields
+# Data release table to query. Set RELEASE="dp2" the day DP2 lands (this summer)
+# — DP2 exposes dp2.Object over a ~3000 deg² footprint (DDFs + contiguous region),
+# so widen RADIUS_DEG / pick a region inside the DP2 footprint. The rest is identical.
+RELEASE = os.environ.get("RUBIN_RELEASE", "dp1")  # "dp1" | "dp2"
+
+# real DP1 extragalactic fields (for DP2, choose a center in its footprint)
 FIELDS = {"ECDFS": (53.13, -28.10), "EDFS": (59.10, -48.73), "SV_95_-25": (95.00, -25.00)}
 FIELD = "ECDFS"
 RA0, DEC0 = FIELDS[FIELD]
@@ -23,7 +28,7 @@ TAP_URL = "https://data.lsst.cloud/api/tap"
 
 ADQL = f"""
 SELECT coord_ra, coord_dec
-FROM dp1.Object
+FROM {RELEASE}.Object
 WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec),
               CIRCLE('ICRS', {RA0}, {DEC0}, {RADIUS_DEG})) = 1
 """
@@ -67,13 +72,13 @@ def main():
         session = requests.Session()
         session.headers["Authorization"] = f"Bearer {token}"
         tap = pyvo.dal.TAPService(TAP_URL, session=session)
-        print(f"Querying dp1.Object around {FIELD} ({RA0}, {DEC0}) r={RADIUS_DEG} ...")
+        print(f"Querying {RELEASE}.Object around {FIELD} ({RA0}, {DEC0}) r={RADIUS_DEG} ...")
         df = tap.search(ADQL).to_table().to_pandas()
     except Exception as exc:
         raise SystemExit(f"TAP query failed: {_scrub(exc)[:600]}")
 
     df = df.rename(columns={"coord_ra": "ra", "coord_dec": "dec"})
-    out = f"dp1_{FIELD}.csv"
+    out = f"{RELEASE}_{FIELD}.csv"
     df[["ra", "dec"]].to_csv(out, index=False)
     print(f"wrote {out}  ({len(df)} objects)")
     print(f"next: python examples/run_on_dp1.py {out} {RA0} {DEC0} {RADIUS_DEG}")

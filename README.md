@@ -33,16 +33,17 @@ the measured angular clustering `w(θ)`, from one engine.*
 
 ![Why GPU matters by DR1](assets/roadmap_scaling.png)
 
-*Why GPU matters by DR1 (illustrative projection; GPU/CPU ratio ~30–50× **measured**
-on a Tesla T4). The estimator runs thousands of times per analysis — that gap is
-multiplied into **time-to-science**. Full detail: [ROADMAP.md](ROADMAP.md).*
+*Why GPU matters by DR1 — and grows with the hardware. The Tesla-T4 ratio (~30–50×)
+is **measured**; on **SLAC A100/H100 or Stanford Marlowe** (the hardware we'd use)
+it's projected **~150×+**, higher still by DR1 (2027). The estimator runs thousands
+of times per analysis → **time-to-science**. Full detail: [ROADMAP.md](ROADMAP.md).*
 
 ### Tracks
 
 - [x] **GPU 2-point clustering** (CuPy) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`, ~30–50× (Tesla T4)
 - [x] **Real DP1** end-to-end — `dp1.Object` via TAP → w(θ) (~495k ECDFS)
 - [~] **cuPhoton-style FITS ingestion** (`fitsio_gpu/`, kvikio + nvCOMP) — built, CPU-verified
-- [~] **AI / field-level inference (SBI)** (`twopcf/sbi.py`) — GPU forward-model → infer a parameter from clustering (dark-energy/dark-matter SBI in miniature)
+- [~] **AI / field-level inference (SBI)** (`twopcf/sbi.py`) — GPU forward-model → infer a parameter from clustering; **DP2-ready** (same pipeline on `dp2.Object`, on S3DF A100/H100)
 - [ ] **Tomographic 3×2pt** at DP2 scale on S3DF (A100/H100)
 - [ ] **GNN / field-level** inference on Rubin catalogs (DR1)
 

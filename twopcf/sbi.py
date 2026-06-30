@@ -71,3 +71,19 @@ def fit_baseline(X, y, lam=1e-2):
         return A2 @ coef
 
     return predict
+
+
+def infer_from_catalog(ra, dec, ra_r, dec_r, predict, edges, backend="cpu"):
+    """Apply a trained SBI inverse model to a REAL catalog (DP1 now, DP2 later).
+
+    Computes the catalog's w(theta) with the GPU engine and returns the model's
+    parameter estimate. Point it at `dp1_ECDFS.csv` now, or `dp2_*.csv` the day
+    DP2 lands this summer — same call.
+
+    NOTE (honest): meaningful only when the forward model is a *realistic
+    cosmological* mock. The Thomas-mock parameter here is a workflow stand-in,
+    not a physical parameter; swapping in cosmological mocks (and a neural
+    posterior estimator) is the science upgrade for DP2/DR1.
+    """
+    w, _ = w_theta_grid(ra, dec, ra_r, dec_r, edges, backend=backend, block=2048, ncells=96)
+    return float(predict(np.nan_to_num(w))[0]), w
