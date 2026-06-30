@@ -1,0 +1,22 @@
+twopcf/bench.py
+  s_8405c01889c58a::t_b97812802dd5f6 122-124
+  s_8405c01889c58a::t_eb51429757c6ac 98-121,125-130,134-135
+ROADMAP.md
+  s_8405c01889c58a::t_74b18298be12f5 65-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "96d2bc1b138bbed65a37bf2bc68f26acf09154f1",
+  "prompts": {},
+  "sessions": {
+    "s_8405c01889c58a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f6ce3fe-49d9-4d5c-84fe-9a216a986243",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "anh nguyen <anh.nqqq@icloud.com>"
+    }
+  }
+}
