@@ -1,0 +1,23 @@
+twopcf/catalog.py
+  s_8405c01889c58a::t_d6e67fa844847f 70-105
+examples/rsp_extract_dp1.py
+  s_8405c01889c58a::t_742622a97b28a9 1-49
+examples/run_on_dp1.py
+  s_8405c01889c58a::t_251e0973e7754f 1-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "df29581af27f87deb3c4c9c421f32f27276bb9c3",
+  "prompts": {},
+  "sessions": {
+    "s_8405c01889c58a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f6ce3fe-49d9-4d5c-84fe-9a216a986243",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "anh nguyen <anh.nqqq@icloud.com>"
+    }
+  }
+}
