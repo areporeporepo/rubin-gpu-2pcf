@@ -62,6 +62,26 @@ TreeCorr 2.7×10⁻⁴) is **measured** in this work. On the hardware we'd actua
 Absolute times assume O(N) cell-list scaling + order-of-magnitude counts; the gap is
 multiplied across the thousands of estimator calls per analysis.*
 
+## Time budget — what a full analysis actually costs
+
+A real analysis runs the estimator **many times**: covariance alone uses **~1,000
+mock catalogs per tracer** (DESI DR1 = 1000 EZmocks × LRG/ELG/QSO), **simulation-based
+inference** needs **10⁴–10⁵** forward models, plus systematics scans and blinding.
+Wall-clock × runs is the metric researchers feel — from the measured CPU per-run
+(48 s at N=20k) × 1000 runs:
+
+| Hardware | full analysis (×1000 runs) |
+|---|---|
+| CPU (today) | **13.3 hr** |
+| Tesla T4 (measured ~35×) | 23 min |
+| A100/H100 — S3DF / Marlowe (proj ~150×) | 5 min |
+| 2027 Blackwell — Rubin / NVIDIA / AWS (proj ~400×) | 2 min |
+| cloud-scale multi-GPU | ~seconds |
+
+At DR1 scale (billions, larger per-run) and SBI run-counts (10⁴–10⁵), this is the
+difference between **months on CPU and hours on a GPU cluster**. `python -m twopcf.bench`
+prints this budget.
+
 ## The science it unlocks
 
 - **3×2pt** (clustering + galaxy–galaxy lensing + shear) → dark energy `w₀, wₐ`

@@ -95,6 +95,41 @@ def plot(rows, path="benchmark_scaling.png"):
     print(f"wrote {path}")
 
 
+def _fmt(seconds):
+    if seconds < 90:
+        return f"{seconds:5.0f} s"
+    if seconds < 5400:
+        return f"{seconds/60:5.1f} min"
+    if seconds < 172800:
+        return f"{seconds/3600:5.1f} hr"
+    return f"{seconds/86400:5.1f} days"
+
+
+def analysis_budget(per_run_cpu_s, n_runs=1000):
+    """Wall-clock for a FULL analysis = per-run time x ~n_runs runs.
+
+    A real clustering/SBI analysis runs the estimator ~1000 times (covariance
+    mocks, systematics tests, inference). Time (minutes/hours) is the metric a
+    researcher actually feels — measure seconds-per-run, multiply by n_runs.
+
+    Tiers: CPU (1x), Tesla T4 (~35x, measured), A100/H100 (~150x, projected),
+    and multi-GPU (data-parallel over the ~1000 independent runs — near-linear
+    for this embarrassingly-parallel workload).
+    """
+    tiers = [
+        ("CPU (today)", 1),
+        ("GPU Tesla T4 (measured ~35x)", 35),
+        ("GPU A100/H100 S3DF/Marlowe (proj ~150x)", 150),
+        ("2027 Blackwell Rubin/NVIDIA/AWS (proj ~400x)", 400),
+        ("cloud-scale multi-GPU over the runs (proj)", 150 * 100),
+    ]
+    print(f"full analysis = {per_run_cpu_s:g}s/run (CPU)  x  {n_runs} runs\n")
+    for name, s in tiers:
+        print(f"  {name:48s} {_fmt(per_run_cpu_s * n_runs / s)}")
+
+
 if __name__ == "__main__":
     rows = run()
     plot(rows)
+    print("\n=== full-analysis time budget (x1000 runs) ===")
+    analysis_budget(per_run_cpu_s=48.0)  # measured CPU per-run at N=20k
