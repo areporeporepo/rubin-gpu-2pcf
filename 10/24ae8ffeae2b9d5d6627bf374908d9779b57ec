@@ -1,0 +1,24 @@
+examples/tap_query_external.py
+  s_8405c01889c58a::t_2b962bd968b85f 1-32,48,50-51,57-74
+  s_8405c01889c58a::t_a29e717625da19 33-47,49,52-56
+.env.example
+  s_8405c01889c58a::t_182ed5e7d5183d 1-2
+.gitignore
+  s_8405c01889c58a::t_61ea0d90d032b4 8-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "1024ae8ffeae2b9d5d6627bf374908d9779b57ec",
+  "prompts": {},
+  "sessions": {
+    "s_8405c01889c58a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f6ce3fe-49d9-4d5c-84fe-9a216a986243",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "anh nguyen <anh.nqqq@icloud.com>"
+    }
+  }
+}
