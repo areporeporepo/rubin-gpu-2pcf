@@ -1,66 +1,75 @@
-# GPU-Accelerated Angular Two-Point Correlations for Rubin/LSST
+# GPU + AI for the LSST DR1 Era
 
-*A complementary GPU backend for DESC TXPipe, validated on real Rubin DP1.*
+*CuPy-accelerated angular clustering → AI field-level inference — built for Rubin **DP2** (this summer) and **DR1** (next year).*
 
 ## Abstract
 
-The angular two-point correlation function `w(θ)` is the galaxy-clustering leg of
-an LSST **3×2pt** cosmology analysis, and it rests on **O(N²) pair counting** — the
-CPU bottleneck as catalogs grow toward billions of objects. We implement `w(θ)`
-(Landy–Szalay) on the **GPU** (CuPy) behind a **provably-correct block-pruning
-cell-list**: the GPU result is **bit-for-bit identical to CPU** (max rel. diff
-0.00e+00), **cross-checked against TreeCorr** (median rel. diff 2.7×10⁻⁴) on a
-Tesla T4, **~30–50× faster** (49.7× at N=20k), and recovers a known analytic
-correlation to **~6%**. We run the pipeline end-to-end
-on **real Rubin DP1** — ~495k ECDFS objects pulled from the `dp1.Object` TAP
-service. It is built as a drop-in GPU backend for DESC's **TXPipe**. The immediate
-target is **Rubin DP2 — releasing this summer (2026)**: the first **LSSTCam** data,
-**~3000 deg²** of deep coadds (≈200× DP1) and the first Rubin catalog large enough
-for **survey-scale clustering** — exactly where GPU pair-counting starts to pay off.
-From there it scales to **DR1's billions next year**, where it becomes necessary —
-and where the estimator runs thousands of times per analysis (bins × covariance
-mocks × inference), so the speedup compounds into real time-to-science. Same approach
-as NVIDIA cuPhoton, on the public GPU stack.
+Rubin/LSST scales from **DP1** (now) → **DP2** (~3000 deg², this summer) → **DR1**
+(billions of objects, next year). Turning that data deluge into dark-energy /
+dark-matter constraints rests on summary statistics whose pair-counting is
+**O(N²)** — the CPU wall. This project puts that workload on the GPU with **CuPy**:
+the angular two-point correlation `w(θ)` (the clustering leg of a **3×2pt**
+analysis), then extends toward the **AI / field-level inference** the field is
+pivoting to (simulation-based inference, GNNs). On a Tesla T4 the GPU result is
+**bit-for-bit identical to CPU** (`0.00e+00`), **cross-checked against TreeCorr**
+(`2.7×10⁻⁴`), **~30–50× faster** (49.7× at N=20k), and recovers a known analytic
+correlation to **~6%** — run end-to-end on **real DP1** (~495k ECDFS objects via
+TAP). It's the same **CuPy** stack DESI already runs for Redrock on Perlmutter (the
+cuPhoton approach), now on the LSST clustering side, and is built to drop into
+DESC's **TXPipe**.
 
-![GPU density field and measured w(theta)](assets/visualization.png)
+![GPU galaxy density field + measured w(theta)](assets/visualization.png)
 
-**Figure 1.** GPU-rendered galaxy density field (*left*; binning + smoothing run on
-the GPU) and the measured angular correlation `w(θ)` (*right*) — one engine, the full
-load → process → analyze → visualize path.
+*Figure 1 — GPU-rendered galaxy density field (binning + smoothing on the GPU) and
+the measured angular clustering `w(θ)`, from one engine.*
+
+## Roadmap — built for DP2 & DR1
+
+| When | Data | Milestone | Why it matters |
+|---|---|---|---|
+| **Now** | DP1 (15 deg², ~2.3M) | validated GPU engine on real data | proof it works |
+| **This summer** | **DP2 (~3000 deg², LSSTCam)** | first **survey-scale** `w(θ)` on GPU | ~200× DP1; GPU starts to *matter* |
+| **Next year** | **DR1 (billions)** | GPU/multi-GPU **3×2pt + AI/SBI** | CPU can't keep up; GPU *necessary* |
+
+![Why GPU matters by DR1](assets/roadmap_scaling.png)
+
+*Why GPU matters by DR1 (illustrative projection; GPU/CPU ratio ~30–50× **measured**
+on a Tesla T4). The estimator runs thousands of times per analysis — that gap is
+multiplied into **time-to-science**. Full detail: [ROADMAP.md](ROADMAP.md).*
+
+### Tracks
+
+- [x] **GPU 2-point clustering** (CuPy) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`, ~30–50× (Tesla T4)
+- [x] **Real DP1** end-to-end — `dp1.Object` via TAP → w(θ) (~495k ECDFS)
+- [~] **cuPhoton-style FITS ingestion** (`fitsio_gpu/`, kvikio + nvCOMP) — built, CPU-verified
+- [~] **AI / field-level inference (SBI)** (`twopcf/sbi.py`) — GPU forward-model → infer a parameter from clustering (dark-energy/dark-matter SBI in miniature)
+- [ ] **Tomographic 3×2pt** at DP2 scale on S3DF (A100/H100)
+- [ ] **GNN / field-level** inference on Rubin catalogs (DR1)
+
+*`[x]` done · `[~]` in progress · `[ ]` planned. AI/field-level is where the field is pushing (DESC AI/ML white paper, 2026) — same CuPy acceleration, applied beyond two-point.*
 
 ![Validation against theory](assets/validation.png)
 
-**Figure 2.** Validation: the GPU-measured `w(θ)` (points) recovers the known input
-analytic correlation (line) to ~6%, is **bit-for-bit identical to CPU** (Tesla T4,
-`max rel. diff 0.00e+00`), and is **cross-checked against TreeCorr** (median rel.
-diff `2.7×10⁻⁴`) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`.
+*Figure 2 — Validation: GPU-measured `w(θ)` (points) recovers the known analytic
+correlation (line) to ~6%, bit-for-bit identical to CPU and cross-checked against
+TreeCorr (`2.7×10⁻⁴`) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`.*
 
 ## Run
 
 ```bash
 pip install -r requirements.txt          # + cupy-cuda12x on a GPU box
 python examples/run_demo.py              # measure + validate -> figure
+python -m twopcf.bench                   # CPU vs GPU speedup
+python examples/run_sbi.py               # AI/field-level: infer a parameter from clustering
 pytest -q                                # correctness gate
 ```
 
 Real DP1: `examples/tap_query_external.py` (RSP token) → `examples/run_on_dp1.py`.
-GPU run: `COLAB.md`.
-
-**Where this is going → [ROADMAP.md](ROADMAP.md):** DP1 (now) → DP2 (~3000 deg², this summer) → DR1 (billions). One estimator today; the GPU layer the Rubin data deluge needs.
-
-## Tracks toward DP2 / DR1
-
-- [x] **GPU 2-point clustering** (CuPy) — `GPU ≡ CPU ≡ TreeCorr ≡ theory`, ~30–50× (Tesla T4)
-- [x] **Real DP1** end-to-end — `dp1.Object` via TAP → w(θ) (~495k ECDFS)
-- [~] **cuPhoton-style FITS ingestion** (`fitsio_gpu/`, kvikio + nvCOMP) — built, CPU-verified
-- [~] **AI / field-level inference (SBI)** (`twopcf/sbi.py`) — scaffold: GPU forward-model → infer a parameter from clustering (the dark-energy/dark-matter SBI workflow in miniature)
-- [ ] **Tomographic 3×2pt** at DP2 scale on S3DF (A100/H100)
-- [ ] **GNN / field-level** inference on Rubin catalogs (DR1)
-
-*Legend: `[x]` done · `[~]` in progress · `[ ]` planned. AI/field-level is where the field is pushing (DESC AI/ML white paper, 2026) — same GPU acceleration, applied beyond two-point.*
+GPU run: `COLAB.md`. Full roadmap: `ROADMAP.md`.
 
 ## Status & honest limits
 
-Phase 1: validated GPU `w(θ)` + cell-list + real-DP1 path. Brute force is O(N²)
-(the cell-list scales past it); a science-grade clustering measurement still needs
-the survey mask and star/galaxy separation.
+GPU `w(θ)` is validated (`GPU ≡ CPU ≡ TreeCorr ≡ theory`) and runs on real DP1.
+The AI/SBI track is an early scaffold (ridge baseline; a neural posterior estimator
+is the upgrade). Brute force is O(N²) — the cell-list scales past it; a science-grade
+clustering measurement still needs the survey mask and star/galaxy separation.
