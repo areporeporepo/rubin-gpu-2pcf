@@ -1,0 +1,28 @@
+examples/tap_query_external.py
+  s_8405c01889c58a::t_60a19a8f66679c 17-22,31
+  s_8405c01889c58a::t_88fa8362354d71 75,81
+ROADMAP.md
+  s_8405c01889c58a::t_43b880dd0c0b6e 30-33
+  s_8405c01889c58a::t_bee248035409e6 58-63
+README.md
+  s_8405c01889c58a::t_6a75d878f04678 36-39
+  s_8405c01889c58a::t_fdf5989afffa17 46
+twopcf/sbi.py
+  s_8405c01889c58a::t_3a52987122bb08 74-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.4",
+  "base_commit_sha": "ec8c1f63dbe1ef43bbcbdaed6ee50ef2636df9ca",
+  "prompts": {},
+  "sessions": {
+    "s_8405c01889c58a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f6ce3fe-49d9-4d5c-84fe-9a216a986243",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "anh nguyen <anh.nqqq@icloud.com>"
+    }
+  }
+}
