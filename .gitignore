@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.png
+*.csv
+!assets/*.png
+.venv/
+.pytest_cache/
+.DS_Store
+
+# Secrets — NEVER commit. RSP token lives here.
+.env
+.env.local
+!.env.example
+
+# Private pitch/outreach — keep OUT of the public repo
+OUTREACH.md
+IMPACT_BRIEF.md

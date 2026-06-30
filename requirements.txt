@@ -1,0 +1,14 @@
+# Core (CPU, runs anywhere)
+numpy>=1.24
+matplotlib>=3.6
+
+# Independent reference for validation
+treecorr>=4.3
+
+# Tests
+pytest>=7.0
+
+# GPU backend -- install ONLY on the CUDA box (GCP A100/H100/L4).
+# Pick the wheel that matches the box's CUDA toolkit:
+#   pip install cupy-cuda12x
+# (CUDA 11 boxes: cupy-cuda11x)
