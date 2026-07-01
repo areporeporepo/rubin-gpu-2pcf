@@ -1,533 +1,405 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>rubin-gpu-2pcf — GPU + AI for the Rubin era</title>
-<meta name="description" content="CuPy-accelerated angular clustering w(θ) for Rubin/LSST — bit-for-bit exact vs CPU & TreeCorr, ~30–50× faster on a Tesla T4, validated on real DP1. Built for DP2 and DR1.">
+<title>rubin-gpu-2pcf: GPU + AI for the Rubin era</title>
+<meta name="description" content="CuPy-accelerated angular clustering w(theta) for Rubin/LSST. Bit-for-bit identical to CPU and TreeCorr, roughly 30 to 50 times faster on a Tesla T4, validated on real DP1. Built for DP2 and DR1.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#070a12; --bg2:#0b1120; --panel:rgba(255,255,255,.028);
-    --ink:#e9edf6; --muted:#8b96ac; --faint:#5b6579;
-    --accent:#6fe3d2; --accent-dim:#2f6b64; --amber:#f4b15a;
-    --line:rgba(255,255,255,.09); --line-2:rgba(255,255,255,.05);
-    --serif:'Instrument Serif',Georgia,serif;
-    --sans:'IBM Plex Sans',sans-serif;
-    --mono:'IBM Plex Mono',ui-monospace,monospace;
-    --maxw:1120px;
+    --brand:#0a7d80; --brand-strong:#0b6a6d; --brand-tint:#e6f2f2;
+    --bg:#ffffff; --bg-alt:#f7f9fa; --bg-code:#f4f6f7;
+    --ink:#1c2126; --ink-soft:#3d474f; --muted:#68727c; --faint:#9aa4ac;
+    --border:#dbe1e6; --border-soft:#eaeef1;
+    --title-bg:#1b2a2b; --title-ink:#eaf1f1; --title-accent:#5cc6c8;
+    --note-bg:#e9f4f4; --note-border:#0a7d80;
+    --tip-bg:#eef6ec; --tip-border:#4f8a3f;
+    --sans:'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --mono:'Source Code Pro',ui-monospace,'SF Mono',Menlo,monospace;
+    --h-title:38px; --h-nav:56px;
+  }
+  html[data-theme="dark"]{
+    --brand:#2fb6ba; --brand-strong:#54c8cb; --brand-tint:#12292a;
+    --bg:#12171a; --bg-alt:#171d21; --bg-code:#1b2227;
+    --ink:#e2e8ec; --ink-soft:#c2cbd2; --muted:#93a0a8; --faint:#6a767e;
+    --border:#2a333a; --border-soft:#222a30;
+    --title-bg:#0e1618; --title-ink:#e2ecec; --title-accent:#3fb6b8;
+    --note-bg:#13282a; --note-border:#2fb6ba;
+    --tip-bg:#182619; --tip-border:#5c9a4c;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{
-    background:var(--bg); color:var(--ink); font-family:var(--sans);
-    font-weight:400; line-height:1.6; -webkit-font-smoothing:antialiased;
-    overflow-x:hidden; letter-spacing:.005em;
-  }
-  /* grain + vignette overlays */
-  body::before{
-    content:""; position:fixed; inset:0; z-index:1; pointer-events:none;
-    background:radial-gradient(120% 80% at 50% -10%, rgba(111,227,210,.10), transparent 55%),
-               radial-gradient(90% 60% at 100% 110%, rgba(244,177,90,.06), transparent 60%);
-  }
-  body::after{
-    content:""; position:fixed; inset:0; z-index:2; pointer-events:none; opacity:.35;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
-    mix-blend-mode:overlay;
-  }
-  #field{position:fixed; inset:0; z-index:0; display:block}
-  main{position:relative; z-index:3}
-  a{color:inherit; text-decoration:none}
-  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65;
+    -webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.86em;background:var(--bg-code);padding:.12em .38em;border-radius:3px;
+    border:1px solid var(--border-soft)}
 
-  /* ---------- nav ---------- */
-  nav{position:fixed; top:0; left:0; right:0; z-index:20;
-    display:flex; align-items:center; justify-content:space-between;
-    padding:16px 28px; backdrop-filter:blur(9px);
-    background:linear-gradient(180deg, rgba(7,10,18,.86), rgba(7,10,18,0));
-    border-bottom:1px solid transparent; transition:border-color .3s;}
-  nav.scrolled{border-color:var(--line-2)}
-  nav .brand{font-family:var(--mono); font-size:13px; letter-spacing:.02em; color:var(--ink);
-    display:flex; align-items:center; gap:9px}
-  nav .brand b{color:var(--accent); font-weight:600}
-  nav .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
-    box-shadow:0 0 10px var(--accent); animation:pulse 2.4s ease-in-out infinite}
-  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.75)}}
-  nav .links{display:flex; gap:26px; align-items:center; font-size:13.5px; color:var(--muted)}
-  nav .links a{transition:color .2s} nav .links a:hover{color:var(--ink)}
-  nav .gh{font-family:var(--mono); font-size:12.5px; color:var(--ink);
-    border:1px solid var(--line); padding:7px 14px; border-radius:2px; transition:.2s}
-  nav .gh:hover{border-color:var(--accent); color:var(--accent)}
-  @media(max-width:720px){nav .links{display:none}}
+  /* ---------- titlebar ---------- */
+  .titlebar{background:var(--title-bg);color:var(--title-ink);height:var(--h-title);
+    display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:13px;
+    position:sticky;top:0;z-index:60}
+  .titlebar .imago{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.01em}
+  .titlebar .imago svg{display:block}
+  .titlebar .imago b{color:var(--title-accent);font-weight:700}
+  .titlebar .note{color:#9fb2b2;font-size:12px;font-weight:400}
+  @media(max-width:640px){.titlebar .note{display:none}}
 
-  /* ---------- hero ---------- */
-  header{min-height:100svh; display:flex; flex-direction:column; justify-content:center;
-    padding:120px 0 70px; position:relative}
-  .eyebrow{font-family:var(--mono); font-size:12.5px; letter-spacing:.28em; text-transform:uppercase;
-    color:var(--accent); margin-bottom:26px; display:flex; align-items:center; gap:14px}
-  .eyebrow::before{content:""; width:34px; height:1px; background:var(--accent); display:inline-block}
-  h1{font-family:var(--serif); font-weight:400; font-size:clamp(46px,8.2vw,104px);
-    line-height:.98; letter-spacing:-.015em; color:var(--ink); max-width:14ch}
-  h1 em{font-style:italic; color:var(--accent)}
-  h1 .amb{color:var(--amber)}
-  .lede{margin-top:30px; max-width:52ch; font-size:clamp(16px,1.9vw,19.5px); color:var(--muted);
-    font-weight:300; line-height:1.65}
-  .lede b{color:var(--ink); font-weight:500}
-  .cta{margin-top:38px; display:flex; gap:14px; flex-wrap:wrap}
-  .btn{font-family:var(--mono); font-size:13.5px; padding:13px 22px; border-radius:2px;
-    display:inline-flex; align-items:center; gap:10px; transition:.22s; border:1px solid var(--line)}
-  .btn.primary{background:var(--accent); color:#04120f; border-color:var(--accent); font-weight:600}
-  .btn.primary:hover{background:#8ff0e1; box-shadow:0 0 30px rgba(111,227,210,.35); transform:translateY(-2px)}
-  .btn.ghost:hover{border-color:var(--ink); color:var(--ink); transform:translateY(-2px)}
-  .metrics{margin-top:64px; display:flex; gap:0; flex-wrap:wrap; border-top:1px solid var(--line)}
-  .metric{padding:22px 34px 22px 0; margin-right:34px; border-right:1px solid var(--line-2);
-    min-width:150px}
-  .metric:last-child{border-right:none}
-  .metric .n{font-family:var(--serif); font-size:34px; line-height:1; color:var(--amber)}
-  .metric .n small{font-size:19px; color:var(--muted)}
-  .metric .l{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--faint); margin-top:9px}
-  .scrollcue{position:absolute; bottom:26px; left:50%; transform:translateX(-50%);
-    font-family:var(--mono); font-size:10.5px; letter-spacing:.25em; color:var(--faint);
-    text-transform:uppercase; display:flex; flex-direction:column; align-items:center; gap:8px}
-  .scrollcue span{width:1px; height:34px; background:linear-gradient(var(--accent),transparent);
-    animation:drop 2s ease-in-out infinite}
-  @keyframes drop{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}
-    50.1%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+  /* ---------- navbar ---------- */
+  .navbar{background:var(--bg);border-bottom:1px solid var(--border);height:var(--h-nav);
+    display:flex;align-items:center;gap:20px;padding:0 22px;position:sticky;top:var(--h-title);z-index:55}
+  .navbar .brand{font-weight:700;font-size:16px;color:var(--ink);white-space:nowrap}
+  .navbar .brand span{color:var(--brand)}
+  .navbar .nav{display:flex;gap:20px;margin-left:8px}
+  .navbar .nav a{color:var(--ink-soft);font-size:14.5px;font-weight:600;padding:4px 0;
+    border-bottom:2px solid transparent}
+  .navbar .nav a:hover{color:var(--brand);text-decoration:none}
+  .navbar .right{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .search{display:flex;align-items:center;gap:8px;background:var(--bg-alt);border:1px solid var(--border);
+    border-radius:5px;padding:6px 10px;color:var(--muted);font-size:13px;min-width:170px;cursor:text}
+  .search kbd{margin-left:auto;font-family:var(--mono);font-size:11px;background:var(--bg);
+    border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--faint)}
+  .icbtn{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--border);
+    border-radius:5px;color:var(--ink-soft);background:var(--bg);cursor:pointer}
+  .icbtn:hover{color:var(--brand);border-color:var(--brand);text-decoration:none}
+  @media(max-width:900px){.navbar .nav,.search{display:none}}
 
-  /* ---------- equivalence band ---------- */
-  .band{border-block:1px solid var(--line); background:linear-gradient(180deg,rgba(111,227,210,.03),transparent);
-    padding:54px 0}
-  .equiv{display:flex; align-items:center; justify-content:center; gap:clamp(10px,3vw,40px);
-    flex-wrap:wrap; text-align:center}
-  .eq-node{display:flex; flex-direction:column; gap:7px}
-  .eq-node .t{font-family:var(--serif); font-size:clamp(24px,3.4vw,40px); color:var(--ink)}
-  .eq-node .s{font-family:var(--mono); font-size:11.5px; color:var(--accent); letter-spacing:.05em}
-  .eq-op{font-family:var(--serif); font-size:clamp(26px,4vw,46px); color:var(--amber); opacity:.8}
-  .band .cap{text-align:center; margin-top:26px; font-size:14.5px; color:var(--muted); font-weight:300}
+  /* ---------- layout ---------- */
+  .shell{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:1fr 220px;gap:52px;
+    padding:0 40px}
+  @media(max-width:1000px){.shell{grid-template-columns:1fr;padding:0 26px}}
+  main{min-width:0;padding:34px 0 80px}
+  .content{max-width:760px}
 
-  /* ---------- generic section ---------- */
-  section{padding:96px 0; position:relative}
-  .kicker{font-family:var(--mono); font-size:12px; letter-spacing:.2em; text-transform:uppercase;
-    color:var(--accent); margin-bottom:20px}
-  h2{font-family:var(--serif); font-weight:400; font-size:clamp(30px,4.6vw,54px); line-height:1.04;
-    letter-spacing:-.01em; max-width:20ch}
-  h2 em{font-style:italic; color:var(--accent)}
-  .sub{margin-top:20px; max-width:60ch; color:var(--muted); font-size:16.5px; font-weight:300}
-  .sub b{color:var(--ink); font-weight:500}
+  .crumbs{font-size:13px;color:var(--muted);margin-bottom:20px}
+  .crumbs a{color:var(--muted)} .crumbs a:hover{color:var(--brand)}
+  .crumbs .sep{margin:0 7px;color:var(--faint)}
 
-  /* problem grid */
-  .split{display:grid; grid-template-columns:1.05fr .95fr; gap:60px; align-items:center}
-  @media(max-width:860px){.split{grid-template-columns:1fr; gap:40px}}
-  .scale{display:flex; flex-direction:column; gap:14px}
-  .srow{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:16px;
-    padding:18px 20px; border:1px solid var(--line); border-radius:3px; background:var(--panel);
-    position:relative; overflow:hidden}
-  .srow .bar{position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,rgba(111,227,210,.14),transparent);}
-  .srow .stage{font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.05em; z-index:1}
-  .srow .name{font-size:15px; color:var(--ink); z-index:1}
-  .srow .name span{color:var(--muted); font-size:13px}
-  .srow .scaleN{font-family:var(--serif); font-size:26px; color:var(--amber); z-index:1}
-  .callout{border-left:2px solid var(--accent); padding:6px 0 6px 22px; margin-top:6px}
-  .callout .big{font-family:var(--serif); font-size:clamp(26px,3.6vw,38px); line-height:1.1}
-  .callout .big em{font-style:italic;color:var(--accent)}
-  .callout p{color:var(--muted); margin-top:12px; font-size:15px; font-weight:300}
+  h1{font-size:37px;font-weight:700;line-height:1.15;letter-spacing:-.01em;margin-bottom:6px}
+  .lead{font-size:18.5px;color:var(--ink-soft);margin:14px 0 26px;line-height:1.6}
+  .lead b{color:var(--ink);font-weight:600}
+
+  h2{font-size:25px;font-weight:700;margin:52px 0 14px;padding-bottom:7px;
+    border-bottom:1px solid var(--border);scroll-margin-top:120px;position:relative}
+  h2 .anchor{opacity:0;color:var(--faint);font-weight:400;margin-left:8px;font-size:19px}
+  h2:hover .anchor{opacity:1}
+  h3{font-size:18px;font-weight:600;margin:26px 0 8px}
+  p{margin:12px 0;color:var(--ink-soft)}
+  p b,li b{color:var(--ink);font-weight:600}
+  ul.body,ol.body{margin:12px 0 12px 22px;color:var(--ink-soft)}
+  ul.body li,ol.body li{margin:6px 0}
+
+  /* admonition */
+  .adm{border:1px solid var(--border);border-left:4px solid var(--note-border);border-radius:4px;
+    background:var(--note-bg);margin:22px 0;overflow:hidden}
+  .adm .t{font-weight:700;font-size:13.5px;letter-spacing:.02em;text-transform:uppercase;
+    color:var(--note-border);padding:9px 16px 4px;display:flex;align-items:center;gap:8px}
+  .adm .b{padding:2px 16px 14px;font-size:15px;color:var(--ink-soft)}
+  .adm .b code{background:var(--bg)}
+  .adm.tip{border-left-color:var(--tip-border);background:var(--tip-bg)}
+  .adm.tip .t{color:var(--tip-border)}
+
+  /* equivalence inline */
+  .eqline{font-family:var(--mono);font-size:15px;color:var(--ink);font-weight:600;letter-spacing:.02em}
+  .eqline .op{color:var(--brand)}
 
   /* figures */
-  .figs{display:grid; grid-template-columns:1fr 1fr; gap:26px; margin-top:8px}
-  @media(max-width:860px){.figs{grid-template-columns:1fr}}
-  figure{border:1px solid var(--line); border-radius:4px; overflow:hidden; background:#060810;
-    position:relative}
-  figure img{display:block; width:100%; height:auto; filter:saturate(1.05) contrast(1.02)}
-  figure figcaption{padding:16px 20px; font-size:13.5px; color:var(--muted); font-weight:300;
-    border-top:1px solid var(--line-2); background:var(--panel)}
-  figure figcaption b{color:var(--accent); font-weight:500; font-family:var(--mono); font-size:12.5px}
-  .fig-tag{position:absolute; top:12px; left:12px; font-family:var(--mono); font-size:10.5px;
-    letter-spacing:.12em; text-transform:uppercase; color:var(--accent); background:rgba(7,10,18,.7);
-    padding:5px 10px; border-radius:2px; backdrop-filter:blur(4px); border:1px solid var(--line-2)}
+  figure{margin:22px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg-alt)}
+  figure img{display:block;width:100%;height:auto}
+  figcaption{font-size:13.5px;color:var(--muted);padding:11px 16px;border-top:1px solid var(--border);
+    background:var(--bg)}
+  figcaption b{color:var(--ink-soft);font-weight:600}
+  .fignum{color:var(--brand);font-weight:700}
 
-  /* timeline */
-  .tl{position:relative; margin-top:24px}
-  .tl-line{position:absolute; top:22px; left:0; right:0; height:1px; background:var(--line)}
-  .tl-line i{position:absolute; left:0; top:0; height:1px; width:33%;
-    background:linear-gradient(90deg,var(--accent),var(--accent-dim))}
-  .tl-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:26px}
-  @media(max-width:760px){.tl-grid{grid-template-columns:1fr; gap:34px} .tl-line{display:none}}
-  .node{position:relative; padding-top:52px}
-  .node::before{content:""; position:absolute; top:16px; left:0; width:13px; height:13px; border-radius:50%;
-    background:var(--bg); border:2px solid var(--accent)}
-  .node.now::before{background:var(--accent); box-shadow:0 0 16px var(--accent)}
-  .node .when{font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.06em}
-  .node .data{font-family:var(--serif); font-size:27px; margin-top:8px; color:var(--ink)}
-  .node .desc{color:var(--muted); font-size:14.5px; margin-top:10px; font-weight:300}
-  .node .why{margin-top:12px; font-family:var(--mono); font-size:11.5px; color:var(--faint);
-    border-top:1px dashed var(--line); padding-top:12px}
+  /* table */
+  .tbl{width:100%;border-collapse:collapse;margin:18px 0;font-size:14.5px}
+  .tbl th,.tbl td{text-align:left;padding:10px 14px;border:1px solid var(--border);vertical-align:top}
+  .tbl thead th{background:var(--bg-alt);font-weight:700;color:var(--ink);font-size:13px;
+    text-transform:uppercase;letter-spacing:.03em}
+  .tbl tbody tr:nth-child(even){background:var(--bg-alt)}
+  .tbl td b{color:var(--ink)}
+  .tbl .now{color:var(--brand);font-weight:700}
 
-  /* tracks */
-  .tracks{display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:8px}
-  @media(max-width:760px){.tracks{grid-template-columns:1fr}}
-  .track{display:flex; gap:16px; align-items:flex-start; padding:20px 22px; border:1px solid var(--line);
-    border-radius:3px; background:var(--panel); transition:.25s}
-  .track:hover{border-color:var(--accent-dim); transform:translateY(-2px)}
-  .track .st{font-family:var(--mono); font-size:11px; padding:3px 8px; border-radius:2px; white-space:nowrap;
-    margin-top:2px}
-  .st.done{color:var(--accent); border:1px solid var(--accent-dim); background:rgba(111,227,210,.07)}
-  .st.wip{color:var(--amber); border:1px solid rgba(244,177,90,.3); background:rgba(244,177,90,.06)}
-  .st.plan{color:var(--faint); border:1px solid var(--line)}
-  .track h3{font-size:15.5px; font-weight:600; color:var(--ink)}
-  .track p{font-size:13.5px; color:var(--muted); margin-top:5px; font-weight:300}
+  /* status list */
+  .status{list-style:none;margin:16px 0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .status li{display:grid;grid-template-columns:112px 1fr;gap:16px;align-items:baseline;
+    padding:12px 4px;border-bottom:1px solid var(--border-soft)}
+  .badge{font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 8px;border-radius:3px;
+    text-align:center;letter-spacing:.02em}
+  .badge.done{color:var(--brand);background:var(--brand-tint);border:1px solid var(--brand)}
+  .badge.wip{color:#9a6a10;background:rgba(214,158,46,.12);border:1px solid rgba(214,158,46,.5)}
+  .badge.plan{color:var(--muted);background:transparent;border:1px solid var(--border)}
+  html[data-theme="dark"] .badge.wip{color:#e0b256}
+  .status .d strong{color:var(--ink)}
+  .status .d span{color:var(--muted)}
 
-  /* run / code */
-  .run{display:grid; grid-template-columns:1fr 1.15fr; gap:50px; align-items:center}
-  @media(max-width:860px){.run{grid-template-columns:1fr; gap:34px}}
-  .code{border:1px solid var(--line); border-radius:5px; overflow:hidden; background:#05070e;
-    font-family:var(--mono); font-size:13.5px}
-  .code .head{display:flex; gap:7px; padding:13px 16px; border-bottom:1px solid var(--line-2);
-    background:var(--panel)}
-  .code .head i{width:11px;height:11px;border-radius:50%;background:var(--line);display:inline-block}
-  .code .head i:first-child{background:#e0574c} .code .head i:nth-child(2){background:var(--amber)}
-  .code .head i:nth-child(3){background:var(--accent)}
-  .code pre{padding:20px 20px; overflow-x:auto; line-height:1.85; color:#c7d0e0}
-  .code .c{color:var(--faint)} .code .p{color:var(--accent)} .code .k{color:var(--amber)}
+  /* code block */
+  pre.code{background:var(--bg-code);border:1px solid var(--border);border-radius:6px;
+    padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.75;
+    color:var(--ink);margin:16px 0}
+  pre.code .c{color:var(--muted)} pre.code .p{color:var(--brand);font-weight:600} pre.code .k{color:#9a6a10}
+  html[data-theme="dark"] pre.code .k{color:#e0b256}
 
-  /* fits / logos */
-  .fits{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:1px;
-    background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden; margin-top:12px}
-  .fit{background:var(--bg); padding:24px 22px}
-  .fit .h{font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
-    color:var(--accent); margin-bottom:10px}
-  .fit p{font-size:13.5px; color:var(--muted); font-weight:300}
-  .fit a{color:var(--ink); border-bottom:1px solid var(--accent-dim)}
+  /* fits grid */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--border);
+    border:1px solid var(--border);border-radius:6px;overflow:hidden;margin:18px 0}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .cell{background:var(--bg);padding:16px 18px}
+  .cell .h{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--brand);margin-bottom:7px;font-weight:600}
+  .cell p{margin:0;font-size:14px}
 
-  /* footer */
-  footer{border-top:1px solid var(--line); padding:70px 0 50px; margin-top:40px}
-  .foot{display:flex; justify-content:space-between; gap:40px; flex-wrap:wrap}
-  .foot .big{font-family:var(--serif); font-size:clamp(28px,4vw,44px); max-width:16ch; line-height:1.05}
-  .foot .big em{font-style:italic; color:var(--accent)}
-  .foot .lset{display:flex; flex-direction:column; gap:11px; font-family:var(--mono); font-size:13px}
-  .foot .lset a{color:var(--muted); transition:.2s; display:flex; align-items:center; gap:8px}
-  .foot .lset a:hover{color:var(--accent)}
-  .limits{margin-top:54px; padding-top:26px; border-top:1px dashed var(--line);
-    font-size:13px; color:var(--faint); font-weight:300; max-width:74ch; line-height:1.7}
-  .limits b{color:var(--muted); font-weight:500}
-  .signoff{margin-top:26px; font-family:var(--mono); font-size:11.5px; color:var(--faint);
-    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px}
+  /* page footer / pager */
+  .pager{display:flex;justify-content:space-between;gap:16px;margin:56px 0 10px;padding-top:22px;
+    border-top:1px solid var(--border);font-size:14px}
+  .pager a{display:flex;flex-direction:column;gap:2px;padding:12px 16px;border:1px solid var(--border);
+    border-radius:6px;min-width:180px}
+  .pager a:hover{border-color:var(--brand);text-decoration:none}
+  .pager .lbl{font-size:12px;color:var(--muted)}
+  .siteftr{border-top:1px solid var(--border);background:var(--bg-alt);margin-top:40px}
+  .siteftr .in{max-width:1240px;margin:0 auto;padding:30px 40px;font-size:13.5px;color:var(--muted)}
+  .siteftr a{color:var(--brand)}
+  .siteftr .disc{margin-top:10px;font-size:12.5px;color:var(--faint);max-width:70ch;line-height:1.6}
 
-  /* reveal animation */
-  .rv{opacity:0; transform:translateY(26px); transition:opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1)}
-  .rv.in{opacity:1; transform:none}
-  .stagger>*{opacity:0; transform:translateY(20px); animation:rise .8s cubic-bezier(.2,.7,.2,1) forwards}
-  @keyframes rise{to{opacity:1;transform:none}}
-  @media(prefers-reduced-motion:reduce){
-    .rv{opacity:1;transform:none;transition:none}
-    .stagger>*{opacity:1;transform:none;animation:none}
-    #field{display:none}
-    .dot,.scrollcue span{animation:none}
-  }
+  /* right on-this-page */
+  aside.toc{padding:34px 0}
+  aside.toc .box{position:sticky;top:calc(var(--h-title) + var(--h-nav) + 22px)}
+  aside.toc .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink);margin-bottom:12px}
+  aside.toc ul{list-style:none}
+  aside.toc a{display:block;font-size:13.5px;color:var(--muted);padding:4px 0 4px 12px;
+    border-left:2px solid var(--border);line-height:1.4}
+  aside.toc a:hover{color:var(--brand);text-decoration:none}
+  aside.toc a.active{color:var(--brand);border-left-color:var(--brand);font-weight:600}
+  @media(max-width:1000px){aside.toc{display:none}}
 </style>
 </head>
 <body>
-<canvas id="field"></canvas>
 
-<nav id="nav">
-  <a class="brand" href="#top"><span class="dot"></span>rubin-gpu-<b>2pcf</b></a>
-  <div class="links">
-    <a href="#result">Result</a>
-    <a href="#figures">Figures</a>
+<div class="titlebar">
+  <span class="imago">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.2" stroke="var(--title-accent)" stroke-width="1.6"/>
+      <circle cx="12" cy="12" r="3.4" fill="var(--title-accent)"/>
+      <path d="M12 2.8v3.2M12 18v3.2M2.8 12h3.2M18 12h3.2" stroke="var(--title-accent)" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    rubin-gpu-<b>2pcf</b>
+  </span>
+  <span class="note">an independent project, built for Vera C. Rubin Observatory / LSST</span>
+</div>
+
+<nav class="navbar">
+  <span class="brand">rubin-gpu-<span>2pcf</span></span>
+  <div class="nav">
+    <a href="#overview">Overview</a>
+    <a href="#method">Method</a>
+    <a href="#validation">Validation</a>
     <a href="#roadmap">Roadmap</a>
     <a href="#run">Run</a>
   </div>
-  <a class="gh" href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener">GitHub ↗</a>
+  <div class="right">
+    <div class="search" onclick="location.href='https://github.com/areporeporepo/rubin-gpu-2pcf/search'">
+      Search <kbd>/</kbd>
+    </div>
+    <button class="icbtn icbtn" id="theme" title="Toggle light / dark" aria-label="Toggle theme">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" id="ico-sun">
+        <circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <a class="icbtn icbtn" href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener" title="GitHub" aria-label="GitHub">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-1.8c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 016 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+    </a>
+  </div>
 </nav>
 
+<div class="shell">
 <main>
-<header id="top">
-  <div class="wrap">
-    <div class="stagger">
-      <div class="eyebrow" style="animation-delay:.05s">GPU + AI · Rubin / LSST cosmology</div>
-      <h1 style="animation-delay:.14s">Clearing the <em>O(N²)</em> wall for the <span class="amb">Rubin</span> era.</h1>
-      <p class="lede" style="animation-delay:.26s">
-        A <b>CuPy</b>-accelerated engine for the angular two-point correlation <b>w(θ)</b> — the
-        clustering leg of a 3×2pt analysis. <b>Bit-for-bit identical to CPU</b>, cross-checked
-        against TreeCorr, <b>~30–50× faster</b> on a Tesla T4, and run end-to-end on <b>real Rubin DP1</b>.
-        Built to ride the data as it lands: DP2 this summer, DR1 next year.
-      </p>
-      <div class="cta" style="animation-delay:.38s">
-        <a class="btn primary" href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener">View the repository →</a>
-        <a class="btn ghost" href="#run">Run the demo</a>
-      </div>
-      <div class="metrics" style="animation-delay:.5s">
-        <div class="metric"><div class="n">≡<small> exact</small></div><div class="l">GPU vs CPU · 0.00e+00</div></div>
-        <div class="metric"><div class="n">30–50<small>×</small></div><div class="l">faster · Tesla T4</div></div>
-        <div class="metric"><div class="n">~495<small>k</small></div><div class="l">real DP1 objects</div></div>
-        <div class="metric"><div class="n">~6<small>%</small></div><div class="l">recovers theory</div></div>
-      </div>
+<div class="content">
+  <div class="crumbs"><a href="#top">rubin-gpu-2pcf</a><span class="sep">/</span>Overview</div>
+
+  <h1 id="top">GPU + AI for the Rubin era</h1>
+  <p class="lead">A <b>CuPy</b>-accelerated engine for the angular two-point correlation <b>w(theta)</b>,
+    the clustering leg of a 3x2pt analysis. Bit-for-bit identical to CPU, cross-checked against TreeCorr,
+    roughly <b>30 to 50 times faster</b> on a Tesla T4, and run end to end on <b>real Rubin DP1</b>. Built to
+    ride the data as it lands: DP2 this summer, DR1 next year.</p>
+
+  <div class="adm">
+    <div class="t">Validated result</div>
+    <div class="b">
+      <p class="eqline" style="margin:6px 0 10px">GPU <span class="op">&equiv;</span> CPU <span class="op">&equiv;</span> TreeCorr <span class="op">&equiv;</span> theory</p>
+      The GPU result is bit-for-bit identical to CPU (<code>0.00e+00</code>), cross-checked against
+      TreeCorr (<code>2.7&times;10&#8315;&#8308;</code>), and recovers the known analytic correlation to about
+      6 percent, run on real DP1 (~495k ECDFS objects via TAP).
     </div>
   </div>
-  <div class="scrollcue">scroll<span></span></div>
-</header>
 
-<!-- equivalence band -->
-<div class="band">
-  <div class="wrap rv">
-    <div class="equiv">
-      <div class="eq-node"><div class="t">GPU</div><div class="s">CuPy</div></div>
-      <div class="eq-op">≡</div>
-      <div class="eq-node"><div class="t">CPU</div><div class="s">NumPy · 0.00e+00</div></div>
-      <div class="eq-op">≡</div>
-      <div class="eq-node"><div class="t">TreeCorr</div><div class="s">2.7×10⁻⁴</div></div>
-      <div class="eq-op">≡</div>
-      <div class="eq-node"><div class="t">theory</div><div class="s">~6%</div></div>
-    </div>
-    <p class="cap">Four independent implementations agreeing is the correctness gate. Same code, one <code style="font-family:var(--mono);color:var(--accent)">xp</code> — CuPy on the GPU, NumPy on a laptop.</p>
+  <h2 id="overview">Overview<a class="anchor" href="#overview">#</a></h2>
+  <p>Rubin/LSST is the largest optical survey ever attempted: about 20 TB every night and roughly 20 billion
+    galaxies mapped over a decade. The cosmology, dark energy, the nature of dark matter, and the galaxy to
+    halo connection, lives in summary statistics computed across those catalogs. But the workhorse estimators
+    are <b>O(N&sup2;) CPU pair-counts</b>, and they hit a wall exactly as the catalogs reach survey scale.</p>
+  <p>Pair counting is embarrassingly parallel, the textbook GPU win. This project puts that workload on the GPU
+    with CuPy, starting from <code>w(theta)</code> and extending toward the AI / field-level inference the
+    field is pivoting to.</p>
+
+  <h2 id="method">Method<a class="anchor" href="#method">#</a></h2>
+  <p>The estimator is Landy and Szalay:</p>
+  <pre class="code">w(theta) = (DD - 2&middot;DR + RR) / RR</pre>
+  <p>where DD, DR, RR are normalized counts of data-data, data-random, and random-random pairs in bins of
+    angular separation. The module provides two identical-algorithm backends behind a single <code>xp</code>
+    handle, so the GPU result can be validated against the CPU one:</p>
+  <ul class="body">
+    <li><b>backend = cpu</b>: NumPy, the bit-for-bit validation reference and speedup baseline (also runs in CI).</li>
+    <li><b>backend = gpu</b>: CuPy, the deployment path (auto-selected when a device is present, for example S3DF A100/H100).</li>
+  </ul>
+  <p>A separate, independent reference (TreeCorr, tree-based) provides the cross-check. Three independent
+    implementations agreeing is the correctness gate.</p>
+
+  <h2 id="validation">Validation<a class="anchor" href="#validation">#</a></h2>
+  <p>One engine renders the field and makes the measurement.</p>
+  <figure>
+    <img src="assets/visualization.png" alt="GPU-rendered galaxy density field and measured angular clustering">
+    <figcaption><span class="fignum">Figure 1.</span> GPU-rendered galaxy density field (binning and smoothing
+      done on the GPU) beside the measured angular clustering <code>w(theta)</code>. <b>One engine, one xp abstraction.</b></figcaption>
+  </figure>
+  <figure>
+    <img src="assets/validation.png" alt="GPU-measured w(theta) recovering the analytic correlation">
+    <figcaption><span class="fignum">Figure 2.</span> Measured <code>w(theta)</code> (points) recovers the known
+      analytic correlation (line) to about 6 percent, bit-for-bit identical to CPU and cross-checked against
+      TreeCorr. <b>GPU &equiv; CPU &equiv; TreeCorr &equiv; theory.</b></figcaption>
+  </figure>
+
+  <h2 id="benchmark">Benchmark<a class="anchor" href="#benchmark">#</a></h2>
+  <figure>
+    <img src="assets/roadmap_scaling.png" alt="Speedup scaling from Tesla T4 to A100/H100 across Rubin releases">
+    <figcaption><span class="fignum">Figure 3.</span> Why GPU matters by DR1. The Tesla-T4 ratio (about 30 to 50
+      times) is <b>measured</b>; on SLAC A100/H100 or Stanford Marlowe it is projected past 150 times. The
+      estimator runs thousands of times per analysis, so it compounds into time-to-science.</figcaption>
+  </figure>
+
+  <h2 id="roadmap">Roadmap<a class="anchor" href="#roadmap">#</a></h2>
+  <p>The trajectory is locked to Rubin's data releases.</p>
+  <table class="tbl">
+    <thead><tr><th>When</th><th>Data</th><th>Milestone</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td class="now">Now</td><td>DP1 (15 deg&sup2;, ~2.3M)</td><td>Validated GPU engine on real data</td><td>Proof it works, not a pitch deck</td></tr>
+      <tr><td class="now">Summer 2026</td><td><b>DP2 (~3000 deg&sup2;, LSSTCam)</b></td><td>First survey-scale <code>w(theta)</code> on GPU</td><td>About 200x DP1 area; where GPU starts to matter</td></tr>
+      <tr><td>2027</td><td>DR1 (billions)</td><td>GPU / multi-GPU 3x2pt + AI / SBI</td><td>Where the field is pushing</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="tracks">Tracks<a class="anchor" href="#tracks">#</a></h2>
+  <ul class="status">
+    <li><span class="badge done">DONE</span><span class="d"><strong>GPU 2-point clustering</strong> <span>CuPy w(theta): GPU &equiv; CPU &equiv; TreeCorr &equiv; theory, about 30 to 50x on a Tesla T4.</span></span></li>
+    <li><span class="badge done">DONE</span><span class="d"><strong>Real DP1, end to end</strong> <span>dp1.Object via TAP to w(theta) on ~495k ECDFS objects.</span></span></li>
+    <li><span class="badge wip">IN PROGRESS</span><span class="d"><strong>Tomographic w(theta)</strong> <span>Photo-z-binned clustering, the density leg of a tomographic 3x2pt, scaling to DP2.</span></span></li>
+    <li><span class="badge wip">IN PROGRESS</span><span class="d"><strong>AI / field-level inference (SBI)</strong> <span>GPU forward-model to neural posterior, trained on 10&#8308; to 10&#8309; forward models. DP2-ready.</span></span></li>
+    <li><span class="badge done">BUILT</span><span class="d"><strong>cuPhoton-style FITS ingestion</strong> <span>kvikio + nvCOMP GPU decompression path, CPU-verified.</span></span></li>
+    <li><span class="badge plan">PLANNED</span><span class="d"><strong>GNN / field-level on catalogs</strong> <span>Graph-network inference on Rubin catalogs, the DR1 horizon.</span></span></li>
+  </ul>
+
+  <h2 id="run">Run<a class="anchor" href="#run">#</a></h2>
+  <div class="adm tip">
+    <div class="t">GPU by default</div>
+    <div class="b">The code auto-selects the GPU when one is present (for example KIPAC's S3DF A100/H100), which is
+      the deployment path. The CPU path exists as the bit-for-bit validation reference, so it also runs on a
+      laptop and in CI. Same code, one <code>xp</code> (CuPy or NumPy).</div>
   </div>
-</div>
-
-<!-- the problem / the result -->
-<section id="result">
-  <div class="wrap">
-    <div class="split">
-      <div class="rv">
-        <div class="kicker">The wall</div>
-        <h2>Rubin's data deluge meets an <em>O(N²)</em> estimator.</h2>
-        <p class="sub">The cosmology — dark energy, the nature of dark matter, the galaxy–halo
-          connection — lives in summary statistics computed across billions of objects. But the
-          workhorse pair-counts scale as the square of catalog size, and they hit a wall exactly
-          as Rubin reaches survey scale. <b>Pair counting is embarrassingly parallel — the textbook GPU win.</b></p>
-        <div class="callout" style="margin-top:34px">
-          <div class="big">Put the workload on the GPU with <em>CuPy</em>, and validate it four ways.</div>
-          <p>A provably-correct block-pruning cell-list scales past brute force; the GPU result stays
-             bit-for-bit consistent with CPU and cross-checks against an independent tree code.</p>
-        </div>
-      </div>
-      <div class="rv scale">
-        <div class="srow"><span class="bar" style="width:8%"></span><span class="stage">NOW</span>
-          <span class="name">DP1 <span>· 15 deg² · ~2.3M</span></span><span class="scaleN">1×</span></div>
-        <div class="srow"><span class="bar" style="width:60%"></span><span class="stage">SUMMER</span>
-          <span class="name">DP2 <span>· ~3000 deg² · LSSTCam</span></span><span class="scaleN">~200×</span></div>
-        <div class="srow"><span class="bar" style="width:100%"></span><span class="stage">2027</span>
-          <span class="name">DR1 <span>· billions of objects</span></span><span class="scaleN">10⁴×</span></div>
-        <p style="font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:6px;letter-spacing:.03em">
-          area scaling relative to DP1 — the point where CPU pair-counting starts to hurt.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- figures -->
-<section id="figures" style="padding-top:20px">
-  <div class="wrap">
-    <div class="rv"><div class="kicker">Evidence</div>
-      <h2>One engine — the field, and the <em>measurement</em>.</h2></div>
-    <div class="figs rv" style="margin-top:40px">
-      <figure>
-        <div class="fig-tag">Fig 1 · density field + w(θ)</div>
-        <img src="assets/visualization.png" alt="GPU-rendered galaxy density field and the measured angular clustering w(theta)" loading="lazy">
-        <figcaption>GPU-rendered galaxy density field — binning and smoothing done on the GPU — beside the
-          measured angular clustering. <b>one engine, one xp abstraction</b></figcaption>
-      </figure>
-      <figure>
-        <div class="fig-tag">Fig 2 · validation</div>
-        <img src="assets/validation.png" alt="GPU-measured w(theta) recovering the analytic correlation" loading="lazy">
-        <figcaption>Measured w(θ) (points) recovers the known analytic correlation (line) to ~6%,
-          bit-for-bit identical to CPU. <b>GPU ≡ CPU ≡ TreeCorr ≡ theory</b></figcaption>
-      </figure>
-    </div>
-    <figure class="rv" style="margin-top:26px">
-      <div class="fig-tag">Fig 3 · why GPU matters by DR1</div>
-      <img src="assets/roadmap_scaling.png" alt="Speedup scaling from Tesla T4 to A100/H100 across Rubin data releases" loading="lazy">
-      <figcaption>The Tesla-T4 ratio (~30–50×) is <b>measured</b>; on SLAC A100/H100 or Stanford Marlowe it's
-        projected ~150×+, and the estimator runs thousands of times per analysis — so it compounds into time-to-science.</figcaption>
-    </figure>
-  </div>
-</section>
-
-<!-- roadmap -->
-<section id="roadmap">
-  <div class="wrap">
-    <div class="rv"><div class="kicker">Trajectory · locked to Rubin's releases</div>
-      <h2>Built for <em>DP2</em> this summer, <em>DR1</em> next year.</h2></div>
-    <div class="tl rv" style="margin-top:46px">
-      <div class="tl-line"><i></i></div>
-      <div class="tl-grid">
-        <div class="node now">
-          <div class="when">NOW · DP1</div>
-          <div class="data">Validated on real data</div>
-          <div class="desc">GPU w(θ) engine, bit-for-bit vs TreeCorr, end-to-end on ~495k ECDFS objects via TAP.</div>
-          <div class="why">proof it works — not a pitch deck</div>
-        </div>
-        <div class="node">
-          <div class="when">SUMMER 2026 · DP2</div>
-          <div class="data">First survey-scale w(θ)</div>
-          <div class="desc">~3000 deg² from LSSTCam — ~200× DP1 area, and the first Rubin set big enough for a survey-scale measurement.</div>
-          <div class="why">the moment GPU starts to matter</div>
-        </div>
-        <div class="node">
-          <div class="when">2027 · DR1</div>
-          <div class="data">3×2pt + AI / SBI</div>
-          <div class="desc">Billions of objects. Tomographic clustering plus neural-posterior inference on GPU/multi-GPU.</div>
-          <div class="why">where the field is pushing</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- tracks -->
-<section style="padding-top:20px">
-  <div class="wrap">
-    <div class="rv"><div class="kicker">Tracks</div>
-      <h2>From two-point counts to <em>field-level</em> inference.</h2></div>
-    <div class="tracks rv" style="margin-top:36px">
-      <div class="track"><span class="st done">DONE</span><div><h3>GPU 2-point clustering</h3>
-        <p>CuPy w(θ) — GPU ≡ CPU ≡ TreeCorr ≡ theory, ~30–50× on a Tesla T4.</p></div></div>
-      <div class="track"><span class="st done">DONE</span><div><h3>Real DP1, end-to-end</h3>
-        <p>dp1.Object via TAP → w(θ) on ~495k ECDFS objects.</p></div></div>
-      <div class="track"><span class="st wip">IN PROGRESS</span><div><h3>Tomographic w(θ)</h3>
-        <p>Photo-z-binned clustering — the density leg of a tomographic 3×2pt, scaling to DP2.</p></div></div>
-      <div class="track"><span class="st wip">IN PROGRESS</span><div><h3>AI / field-level inference (SBI)</h3>
-        <p>GPU forward-model → neural posterior, trained on 10⁴–10⁵ forward models. DP2-ready.</p></div></div>
-      <div class="track"><span class="st done">BUILT</span><div><h3>cuPhoton-style FITS ingestion</h3>
-        <p>kvikio + nvCOMP GPU decompression path, CPU-verified.</p></div></div>
-      <div class="track"><span class="st plan">PLANNED</span><div><h3>GNN / field-level on catalogs</h3>
-        <p>Graph-network inference on Rubin catalogs — the DR1 horizon.</p></div></div>
-    </div>
-  </div>
-</section>
-
-<!-- run -->
-<section id="run">
-  <div class="wrap">
-    <div class="run">
-      <div class="rv">
-        <div class="kicker">Run it</div>
-        <h2>A working tool, on <em>real</em> data.</h2>
-        <p class="sub">GPU by default — the code auto-selects the device when one is present (KIPAC's S3DF
-          A100/H100 is the deployment path). The CPU path exists as the bit-for-bit validation reference,
-          so it also runs on a laptop and in CI.</p>
-        <div class="fits" style="margin-top:30px">
-          <div class="fit"><div class="h">Estimator</div><p>Landy–Szalay<br>w(θ) = (DD − 2DR + RR)/RR</p></div>
-          <div class="fit"><div class="h">Backends</div><p>CuPy · NumPy · TreeCorr<br>one <code style="color:var(--accent)">xp</code> abstraction</p></div>
-          <div class="fit"><div class="h">Gate</div><p>pytest correctness<br>three impls must agree</p></div>
-        </div>
-      </div>
-      <div class="rv">
-        <div class="code">
-          <div class="head"><i></i><i></i><i></i></div>
-<pre><span class="c"># + cupy-cuda12x on a GPU box</span>
+<pre class="code"><span class="c"># + cupy-cuda12x on a GPU box</span>
 pip install <span class="k">-r</span> requirements.txt
 
-<span class="c"># measure + validate -> figure</span>
+<span class="c"># measure + validate, then write a figure</span>
 python examples/<span class="p">run_demo.py</span>
 
 <span class="c"># CPU vs GPU speedup</span>
 python <span class="k">-m</span> twopcf.<span class="p">bench</span>
 
-<span class="c"># AI / field-level: infer from clustering</span>
+<span class="c"># AI / field-level: infer a parameter from clustering</span>
 python examples/<span class="p">run_sbi.py</span>
 
 <span class="c"># correctness gate</span>
 <span class="p">pytest</span> <span class="k">-q</span></pre>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
 
-<!-- where it fits -->
-<section style="padding-top:20px">
-  <div class="wrap rv">
-    <div class="kicker">Where this fits — the field, the data, the compute</div>
-    <h2>Plugged into the funded mainstream of <em>AI-for-cosmology</em>.</h2>
-    <div class="fits" style="margin-top:34px">
-      <div class="fit"><div class="h">The data</div><p>Rubin <a href="https://dp1.lsst.io/" target="_blank" rel="noopener">DP1</a> → DP2 (~3000 deg²) → DR1 (billions).</p></div>
-      <div class="fit"><div class="h">The pipeline</div><p>Built to drop into DESC's <a href="https://github.com/LSSTDESC/TXPipe" target="_blank" rel="noopener">TXPipe</a> and validate against CCL.</p></div>
-      <div class="fit"><div class="h">The AI push</div><p>DESC AI/ML white paper; IAIFI &amp; the NSF-Simons CosmicAI institute.</p></div>
-      <div class="fit"><div class="h">The compute</div><p>NSF + NVIDIA open AI for science; free GPU via NAIRR / DOE exascale.</p></div>
-    </div>
+  <h2 id="fits">Where this fits<a class="anchor" href="#fits">#</a></h2>
+  <p>This plugs into the funded mainstream of AI-for-cosmology and the Rubin data flow.</p>
+  <div class="grid">
+    <div class="cell"><div class="h">The data</div><p>Rubin <a href="https://dp1.lsst.io/" target="_blank" rel="noopener">DP1</a> to DP2 (~3000 deg&sup2;) to DR1 (billions).</p></div>
+    <div class="cell"><div class="h">The pipeline</div><p>Built to drop into DESC's <a href="https://github.com/LSSTDESC/TXPipe" target="_blank" rel="noopener">TXPipe</a> and validate against CCL.</p></div>
+    <div class="cell"><div class="h">The AI push</div><p>DESC AI/ML white paper; IAIFI and the NSF-Simons CosmicAI institute.</p></div>
+    <div class="cell"><div class="h">The compute</div><p>NSF + NVIDIA open AI for science; free GPU via NAIRR / DOE exascale.</p></div>
   </div>
-</section>
 
-<footer>
-  <div class="wrap">
-    <div class="foot">
-      <div class="foot-l rv">
-        <div class="big">GPU acceleration for the data deluge, extended toward <em>field-level inference</em>.</div>
-      </div>
-      <div class="lset rv">
-        <a href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener">→ github.com/areporeporepo/rubin-gpu-2pcf</a>
-        <a href="https://dp1.lsst.io/" target="_blank" rel="noopener">→ Rubin Data Preview 1</a>
-        <a href="https://github.com/LSSTDESC/TXPipe" target="_blank" rel="noopener">→ LSST DESC · TXPipe</a>
-        <a href="https://rubinobservatory.org/" target="_blank" rel="noopener">→ Rubin Observatory</a>
-      </div>
-    </div>
-    <p class="limits"><b>Honest limits.</b> The GPU w(θ) is validated (GPU ≡ CPU ≡ TreeCorr ≡ theory) and runs on
-      real DP1. The AI/SBI track is an early scaffold — a ridge baseline today, with a neural-posterior
-      estimator as the upgrade. Brute force is O(N²); the cell-list scales past it. A science-grade
-      clustering measurement still needs the survey mask and star/galaxy separation.</p>
-    <div class="signoff">
-      <span>rubin-gpu-2pcf · CuPy · Landy–Szalay · SBI</span>
-      <span>same idea, one rung at a time</span>
-    </div>
+  <div class="adm">
+    <div class="t">Honest limits</div>
+    <div class="b">The GPU <code>w(theta)</code> is validated and runs on real DP1. The AI/SBI track is an early
+      scaffold (a ridge baseline today, with a neural-posterior estimator as the upgrade). Brute force is
+      O(N&sup2;); the cell-list scales past it. A science-grade clustering measurement still needs the survey
+      mask and star/galaxy separation.</div>
   </div>
-</footer>
+
+  <div class="pager">
+    <a href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener">
+      <span class="lbl">Repository</span><span>github.com/areporeporepo/rubin-gpu-2pcf</span></a>
+    <a href="https://dp1.lsst.io/" target="_blank" rel="noopener" style="text-align:right">
+      <span class="lbl">Reference</span><span>Rubin Data Preview 1</span></a>
+  </div>
+</div>
 </main>
 
+<aside class="toc">
+  <div class="box">
+    <div class="lbl">On this page</div>
+    <ul id="toc">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#method">Method</a></li>
+      <li><a href="#validation">Validation</a></li>
+      <li><a href="#benchmark">Benchmark</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#tracks">Tracks</a></li>
+      <li><a href="#run">Run</a></li>
+      <li><a href="#fits">Where this fits</a></li>
+    </ul>
+  </div>
+</aside>
+</div>
+
+<footer class="siteftr">
+  <div class="in">
+    <a href="https://github.com/areporeporepo/rubin-gpu-2pcf">rubin-gpu-2pcf</a> &middot; CuPy &middot;
+    Landy-Szalay &middot; simulation-based inference. Built with plain HTML, styled after the Rubin/LSST docs.
+    <div class="disc">An independent, personal research project. Not affiliated with, produced by, or endorsed
+      by the Vera C. Rubin Observatory, NSF, DOE, or AURA. Rubin and LSST names are used only to describe the
+      data this tool targets.</div>
+  </div>
+</footer>
+
 <script>
-  // nav border on scroll
-  const nav=document.getElementById('nav');
-  addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40),{passive:true});
+  // theme toggle
+  const root=document.documentElement, tbtn=document.getElementById('theme');
+  const saved=localStorage.getItem('theme');
+  if(saved) root.setAttribute('data-theme',saved);
+  else if(matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme','dark');
+  const sun='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" stroke-linecap="round"/></svg>';
+  const moon='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 14.5A8 8 0 019.5 4a7 7 0 108.5 10.5z" stroke-linejoin="round"/></svg>';
+  function paintIcon(){tbtn.innerHTML=root.getAttribute('data-theme')==='dark'?moon:sun;}
+  paintIcon();
+  tbtn.addEventListener('click',()=>{
+    const next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+    root.setAttribute('data-theme',next);localStorage.setItem('theme',next);paintIcon();
+  });
 
-  // reveal on scroll
-  const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.16});
-  document.querySelectorAll('.rv').forEach(el=>io.observe(el));
-
-  // density-field canvas — a slow-drifting, gently-clustered point field
-  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!reduce){
-    const cv=document.getElementById('field'), cx=cv.getContext('2d');
-    let w,h,pts,dpr;
-    const CLUSTERS=5;
-    function seedClusters(){
-      const cs=[];
-      for(let i=0;i<CLUSTERS;i++) cs.push({x:Math.random()*w,y:Math.random()*h,r:120+Math.random()*260});
-      return cs;
-    }
-    function init(){
-      dpr=Math.min(devicePixelRatio||1,2); w=cv.width=innerWidth*dpr; h=cv.height=innerHeight*dpr;
-      cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
-      const N=Math.round((innerWidth*innerHeight)/9000);
-      const cs=seedClusters(); pts=[];
-      for(let i=0;i<N;i++){
-        // 60% clustered around seeds, 40% uniform — mimics galaxy clustering
-        let x,y;
-        if(Math.random()<.6){const c=cs[(Math.random()*cs.length)|0];
-          const a=Math.random()*6.283, rr=Math.random()*c.r*dpr;
-          x=c.x*dpr+Math.cos(a)*rr; y=c.y*dpr+Math.sin(a)*rr;}
-        else{x=Math.random()*w; y=Math.random()*h;}
-        pts.push({x,y,z:Math.random(),tw:Math.random()*6.283,
-          vx:(Math.random()-.5)*.05*dpr,vy:(Math.random()-.5)*.05*dpr});
-      }
-    }
-    let t=0;
-    function frame(){
-      t+=.016; cx.clearRect(0,0,w,h);
-      for(const p of pts){
-        p.x+=p.vx; p.y+=p.vy;
-        if(p.x<0)p.x+=w; if(p.x>w)p.x-=w; if(p.y<0)p.y+=h; if(p.y>h)p.y-=h;
-        const tw=.55+.45*Math.sin(t*1.3+p.tw);
-        const size=(p.z*1.7+.35)*dpr, alpha=(.10+p.z*.55)*tw;
-        cx.beginPath(); cx.arc(p.x,p.y,size,0,6.283);
-        cx.fillStyle=p.z>.82?`rgba(244,177,90,${alpha})`:`rgba(150,220,214,${alpha})`;
-        cx.fill();
-      }
-      requestAnimationFrame(frame);
-    }
-    init(); frame();
-    let rt; addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(init,180)});
-  }
+  // scrollspy for On this page
+  const links=[...document.querySelectorAll('#toc a')];
+  const map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+  const spy=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.remove('active'));
+      const a=map.get(e.target.id); if(a)a.classList.add('active');}});
+  },{rootMargin:'-120px 0px -70% 0px',threshold:0});
+  document.querySelectorAll('main h2[id]').forEach(h=>spy.observe(h));
 </script>
 </body>
 </html>
