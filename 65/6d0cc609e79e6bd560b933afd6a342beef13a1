@@ -1,0 +1,19 @@
+index.html
+  s_ea27a5b64a2b39::t_bbeff7965e89df 1-533
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.5",
+  "base_commit_sha": "656d0cc609e79e6bd560b933afd6a342beef13a1",
+  "prompts": {},
+  "sessions": {
+    "s_ea27a5b64a2b39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4ca973e-7444-4d06-b90e-222d90dc32bf",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "anh nguyen <anh.nqqq@icloud.com>"
+    }
+  }
+}
