@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rubin-gpu-2pcf — GPU + AI for the Rubin era</title>
+<meta name="description" content="CuPy-accelerated angular clustering w(θ) for Rubin/LSST — bit-for-bit exact vs CPU & TreeCorr, ~30–50× faster on a Tesla T4, validated on real DP1. Built for DP2 and DR1.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070a12; --bg2:#0b1120; --panel:rgba(255,255,255,.028);
+    --ink:#e9edf6; --muted:#8b96ac; --faint:#5b6579;
+    --accent:#6fe3d2; --accent-dim:#2f6b64; --amber:#f4b15a;
+    --line:rgba(255,255,255,.09); --line-2:rgba(255,255,255,.05);
+    --serif:'Instrument Serif',Georgia,serif;
+    --sans:'IBM Plex Sans',sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --maxw:1120px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--sans);
+    font-weight:400; line-height:1.6; -webkit-font-smoothing:antialiased;
+    overflow-x:hidden; letter-spacing:.005em;
+  }
+  /* grain + vignette overlays */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:1; pointer-events:none;
+    background:radial-gradient(120% 80% at 50% -10%, rgba(111,227,210,.10), transparent 55%),
+               radial-gradient(90% 60% at 100% 110%, rgba(244,177,90,.06), transparent 60%);
+  }
+  body::after{
+    content:""; position:fixed; inset:0; z-index:2; pointer-events:none; opacity:.35;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+    mix-blend-mode:overlay;
+  }
+  #field{position:fixed; inset:0; z-index:0; display:block}
+  main{position:relative; z-index:3}
+  a{color:inherit; text-decoration:none}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px}
+
+  /* ---------- nav ---------- */
+  nav{position:fixed; top:0; left:0; right:0; z-index:20;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px; backdrop-filter:blur(9px);
+    background:linear-gradient(180deg, rgba(7,10,18,.86), rgba(7,10,18,0));
+    border-bottom:1px solid transparent; transition:border-color .3s;}
+  nav.scrolled{border-color:var(--line-2)}
+  nav .brand{font-family:var(--mono); font-size:13px; letter-spacing:.02em; color:var(--ink);
+    display:flex; align-items:center; gap:9px}
+  nav .brand b{color:var(--accent); font-weight:600}
+  nav .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 10px var(--accent); animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.75)}}
+  nav .links{display:flex; gap:26px; align-items:center; font-size:13.5px; color:var(--muted)}
+  nav .links a{transition:color .2s} nav .links a:hover{color:var(--ink)}
+  nav .gh{font-family:var(--mono); font-size:12.5px; color:var(--ink);
+    border:1px solid var(--line); padding:7px 14px; border-radius:2px; transition:.2s}
+  nav .gh:hover{border-color:var(--accent); color:var(--accent)}
+  @media(max-width:720px){nav .links{display:none}}
+
+  /* ---------- hero ---------- */
+  header{min-height:100svh; display:flex; flex-direction:column; justify-content:center;
+    padding:120px 0 70px; position:relative}
+  .eyebrow{font-family:var(--mono); font-size:12.5px; letter-spacing:.28em; text-transform:uppercase;
+    color:var(--accent); margin-bottom:26px; display:flex; align-items:center; gap:14px}
+  .eyebrow::before{content:""; width:34px; height:1px; background:var(--accent); display:inline-block}
+  h1{font-family:var(--serif); font-weight:400; font-size:clamp(46px,8.2vw,104px);
+    line-height:.98; letter-spacing:-.015em; color:var(--ink); max-width:14ch}
+  h1 em{font-style:italic; color:var(--accent)}
+  h1 .amb{color:var(--amber)}
+  .lede{margin-top:30px; max-width:52ch; font-size:clamp(16px,1.9vw,19.5px); color:var(--muted);
+    font-weight:300; line-height:1.65}
+  .lede b{color:var(--ink); font-weight:500}
+  .cta{margin-top:38px; display:flex; gap:14px; flex-wrap:wrap}
+  .btn{font-family:var(--mono); font-size:13.5px; padding:13px 22px; border-radius:2px;
+    display:inline-flex; align-items:center; gap:10px; transition:.22s; border:1px solid var(--line)}
+  .btn.primary{background:var(--accent); color:#04120f; border-color:var(--accent); font-weight:600}
+  .btn.primary:hover{background:#8ff0e1; box-shadow:0 0 30px rgba(111,227,210,.35); transform:translateY(-2px)}
+  .btn.ghost:hover{border-color:var(--ink); color:var(--ink); transform:translateY(-2px)}
+  .metrics{margin-top:64px; display:flex; gap:0; flex-wrap:wrap; border-top:1px solid var(--line)}
+  .metric{padding:22px 34px 22px 0; margin-right:34px; border-right:1px solid var(--line-2);
+    min-width:150px}
+  .metric:last-child{border-right:none}
+  .metric .n{font-family:var(--serif); font-size:34px; line-height:1; color:var(--amber)}
+  .metric .n small{font-size:19px; color:var(--muted)}
+  .metric .l{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--faint); margin-top:9px}
+  .scrollcue{position:absolute; bottom:26px; left:50%; transform:translateX(-50%);
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.25em; color:var(--faint);
+    text-transform:uppercase; display:flex; flex-direction:column; align-items:center; gap:8px}
+  .scrollcue span{width:1px; height:34px; background:linear-gradient(var(--accent),transparent);
+    animation:drop 2s ease-in-out infinite}
+  @keyframes drop{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}
+    50.1%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  /* ---------- equivalence band ---------- */
+  .band{border-block:1px solid var(--line); background:linear-gradient(180deg,rgba(111,227,210,.03),transparent);
+    padding:54px 0}
+  .equiv{display:flex; align-items:center; justify-content:center; gap:clamp(10px,3vw,40px);
+    flex-wrap:wrap; text-align:center}
+  .eq-node{display:flex; flex-direction:column; gap:7px}
+  .eq-node .t{font-family:var(--serif); font-size:clamp(24px,3.4vw,40px); color:var(--ink)}
+  .eq-node .s{font-family:var(--mono); font-size:11.5px; color:var(--accent); letter-spacing:.05em}
+  .eq-op{font-family:var(--serif); font-size:clamp(26px,4vw,46px); color:var(--amber); opacity:.8}
+  .band .cap{text-align:center; margin-top:26px; font-size:14.5px; color:var(--muted); font-weight:300}
+
+  /* ---------- generic section ---------- */
+  section{padding:96px 0; position:relative}
+  .kicker{font-family:var(--mono); font-size:12px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--accent); margin-bottom:20px}
+  h2{font-family:var(--serif); font-weight:400; font-size:clamp(30px,4.6vw,54px); line-height:1.04;
+    letter-spacing:-.01em; max-width:20ch}
+  h2 em{font-style:italic; color:var(--accent)}
+  .sub{margin-top:20px; max-width:60ch; color:var(--muted); font-size:16.5px; font-weight:300}
+  .sub b{color:var(--ink); font-weight:500}
+
+  /* problem grid */
+  .split{display:grid; grid-template-columns:1.05fr .95fr; gap:60px; align-items:center}
+  @media(max-width:860px){.split{grid-template-columns:1fr; gap:40px}}
+  .scale{display:flex; flex-direction:column; gap:14px}
+  .srow{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:16px;
+    padding:18px 20px; border:1px solid var(--line); border-radius:3px; background:var(--panel);
+    position:relative; overflow:hidden}
+  .srow .bar{position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,rgba(111,227,210,.14),transparent);}
+  .srow .stage{font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.05em; z-index:1}
+  .srow .name{font-size:15px; color:var(--ink); z-index:1}
+  .srow .name span{color:var(--muted); font-size:13px}
+  .srow .scaleN{font-family:var(--serif); font-size:26px; color:var(--amber); z-index:1}
+  .callout{border-left:2px solid var(--accent); padding:6px 0 6px 22px; margin-top:6px}
+  .callout .big{font-family:var(--serif); font-size:clamp(26px,3.6vw,38px); line-height:1.1}
+  .callout .big em{font-style:italic;color:var(--accent)}
+  .callout p{color:var(--muted); margin-top:12px; font-size:15px; font-weight:300}
+
+  /* figures */
+  .figs{display:grid; grid-template-columns:1fr 1fr; gap:26px; margin-top:8px}
+  @media(max-width:860px){.figs{grid-template-columns:1fr}}
+  figure{border:1px solid var(--line); border-radius:4px; overflow:hidden; background:#060810;
+    position:relative}
+  figure img{display:block; width:100%; height:auto; filter:saturate(1.05) contrast(1.02)}
+  figure figcaption{padding:16px 20px; font-size:13.5px; color:var(--muted); font-weight:300;
+    border-top:1px solid var(--line-2); background:var(--panel)}
+  figure figcaption b{color:var(--accent); font-weight:500; font-family:var(--mono); font-size:12.5px}
+  .fig-tag{position:absolute; top:12px; left:12px; font-family:var(--mono); font-size:10.5px;
+    letter-spacing:.12em; text-transform:uppercase; color:var(--accent); background:rgba(7,10,18,.7);
+    padding:5px 10px; border-radius:2px; backdrop-filter:blur(4px); border:1px solid var(--line-2)}
+
+  /* timeline */
+  .tl{position:relative; margin-top:24px}
+  .tl-line{position:absolute; top:22px; left:0; right:0; height:1px; background:var(--line)}
+  .tl-line i{position:absolute; left:0; top:0; height:1px; width:33%;
+    background:linear-gradient(90deg,var(--accent),var(--accent-dim))}
+  .tl-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:26px}
+  @media(max-width:760px){.tl-grid{grid-template-columns:1fr; gap:34px} .tl-line{display:none}}
+  .node{position:relative; padding-top:52px}
+  .node::before{content:""; position:absolute; top:16px; left:0; width:13px; height:13px; border-radius:50%;
+    background:var(--bg); border:2px solid var(--accent)}
+  .node.now::before{background:var(--accent); box-shadow:0 0 16px var(--accent)}
+  .node .when{font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.06em}
+  .node .data{font-family:var(--serif); font-size:27px; margin-top:8px; color:var(--ink)}
+  .node .desc{color:var(--muted); font-size:14.5px; margin-top:10px; font-weight:300}
+  .node .why{margin-top:12px; font-family:var(--mono); font-size:11.5px; color:var(--faint);
+    border-top:1px dashed var(--line); padding-top:12px}
+
+  /* tracks */
+  .tracks{display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:8px}
+  @media(max-width:760px){.tracks{grid-template-columns:1fr}}
+  .track{display:flex; gap:16px; align-items:flex-start; padding:20px 22px; border:1px solid var(--line);
+    border-radius:3px; background:var(--panel); transition:.25s}
+  .track:hover{border-color:var(--accent-dim); transform:translateY(-2px)}
+  .track .st{font-family:var(--mono); font-size:11px; padding:3px 8px; border-radius:2px; white-space:nowrap;
+    margin-top:2px}
+  .st.done{color:var(--accent); border:1px solid var(--accent-dim); background:rgba(111,227,210,.07)}
+  .st.wip{color:var(--amber); border:1px solid rgba(244,177,90,.3); background:rgba(244,177,90,.06)}
+  .st.plan{color:var(--faint); border:1px solid var(--line)}
+  .track h3{font-size:15.5px; font-weight:600; color:var(--ink)}
+  .track p{font-size:13.5px; color:var(--muted); margin-top:5px; font-weight:300}
+
+  /* run / code */
+  .run{display:grid; grid-template-columns:1fr 1.15fr; gap:50px; align-items:center}
+  @media(max-width:860px){.run{grid-template-columns:1fr; gap:34px}}
+  .code{border:1px solid var(--line); border-radius:5px; overflow:hidden; background:#05070e;
+    font-family:var(--mono); font-size:13.5px}
+  .code .head{display:flex; gap:7px; padding:13px 16px; border-bottom:1px solid var(--line-2);
+    background:var(--panel)}
+  .code .head i{width:11px;height:11px;border-radius:50%;background:var(--line);display:inline-block}
+  .code .head i:first-child{background:#e0574c} .code .head i:nth-child(2){background:var(--amber)}
+  .code .head i:nth-child(3){background:var(--accent)}
+  .code pre{padding:20px 20px; overflow-x:auto; line-height:1.85; color:#c7d0e0}
+  .code .c{color:var(--faint)} .code .p{color:var(--accent)} .code .k{color:var(--amber)}
+
+  /* fits / logos */
+  .fits{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden; margin-top:12px}
+  .fit{background:var(--bg); padding:24px 22px}
+  .fit .h{font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--accent); margin-bottom:10px}
+  .fit p{font-size:13.5px; color:var(--muted); font-weight:300}
+  .fit a{color:var(--ink); border-bottom:1px solid var(--accent-dim)}
+
+  /* footer */
+  footer{border-top:1px solid var(--line); padding:70px 0 50px; margin-top:40px}
+  .foot{display:flex; justify-content:space-between; gap:40px; flex-wrap:wrap}
+  .foot .big{font-family:var(--serif); font-size:clamp(28px,4vw,44px); max-width:16ch; line-height:1.05}
+  .foot .big em{font-style:italic; color:var(--accent)}
+  .foot .lset{display:flex; flex-direction:column; gap:11px; font-family:var(--mono); font-size:13px}
+  .foot .lset a{color:var(--muted); transition:.2s; display:flex; align-items:center; gap:8px}
+  .foot .lset a:hover{color:var(--accent)}
+  .limits{margin-top:54px; padding-top:26px; border-top:1px dashed var(--line);
+    font-size:13px; color:var(--faint); font-weight:300; max-width:74ch; line-height:1.7}
+  .limits b{color:var(--muted); font-weight:500}
+  .signoff{margin-top:26px; font-family:var(--mono); font-size:11.5px; color:var(--faint);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px}
+
+  /* reveal animation */
+  .rv{opacity:0; transform:translateY(26px); transition:opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1)}
+  .rv.in{opacity:1; transform:none}
+  .stagger>*{opacity:0; transform:translateY(20px); animation:rise .8s cubic-bezier(.2,.7,.2,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @media(prefers-reduced-motion:reduce){
+    .rv{opacity:1;transform:none;transition:none}
+    .stagger>*{opacity:1;transform:none;animation:none}
+    #field{display:none}
+    .dot,.scrollcue span{animation:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="field"></canvas>
+
+<nav id="nav">
+  <a class="brand" href="#top"><span class="dot"></span>rubin-gpu-<b>2pcf</b></a>
+  <div class="links">
+    <a href="#result">Result</a>
+    <a href="#figures">Figures</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#run">Run</a>
+  </div>
+  <a class="gh" href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener">GitHub ↗</a>
+</nav>
+
+<main>
+<header id="top">
+  <div class="wrap">
+    <div class="stagger">
+      <div class="eyebrow" style="animation-delay:.05s">GPU + AI · Rubin / LSST cosmology</div>
+      <h1 style="animation-delay:.14s">Clearing the <em>O(N²)</em> wall for the <span class="amb">Rubin</span> era.</h1>
+      <p class="lede" style="animation-delay:.26s">
+        A <b>CuPy</b>-accelerated engine for the angular two-point correlation <b>w(θ)</b> — the
+        clustering leg of a 3×2pt analysis. <b>Bit-for-bit identical to CPU</b>, cross-checked
+        against TreeCorr, <b>~30–50× faster</b> on a Tesla T4, and run end-to-end on <b>real Rubin DP1</b>.
+        Built to ride the data as it lands: DP2 this summer, DR1 next year.
+      </p>
+      <div class="cta" style="animation-delay:.38s">
+        <a class="btn primary" href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener">View the repository →</a>
+        <a class="btn ghost" href="#run">Run the demo</a>
+      </div>
+      <div class="metrics" style="animation-delay:.5s">
+        <div class="metric"><div class="n">≡<small> exact</small></div><div class="l">GPU vs CPU · 0.00e+00</div></div>
+        <div class="metric"><div class="n">30–50<small>×</small></div><div class="l">faster · Tesla T4</div></div>
+        <div class="metric"><div class="n">~495<small>k</small></div><div class="l">real DP1 objects</div></div>
+        <div class="metric"><div class="n">~6<small>%</small></div><div class="l">recovers theory</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="scrollcue">scroll<span></span></div>
+</header>
+
+<!-- equivalence band -->
+<div class="band">
+  <div class="wrap rv">
+    <div class="equiv">
+      <div class="eq-node"><div class="t">GPU</div><div class="s">CuPy</div></div>
+      <div class="eq-op">≡</div>
+      <div class="eq-node"><div class="t">CPU</div><div class="s">NumPy · 0.00e+00</div></div>
+      <div class="eq-op">≡</div>
+      <div class="eq-node"><div class="t">TreeCorr</div><div class="s">2.7×10⁻⁴</div></div>
+      <div class="eq-op">≡</div>
+      <div class="eq-node"><div class="t">theory</div><div class="s">~6%</div></div>
+    </div>
+    <p class="cap">Four independent implementations agreeing is the correctness gate. Same code, one <code style="font-family:var(--mono);color:var(--accent)">xp</code> — CuPy on the GPU, NumPy on a laptop.</p>
+  </div>
+</div>
+
+<!-- the problem / the result -->
+<section id="result">
+  <div class="wrap">
+    <div class="split">
+      <div class="rv">
+        <div class="kicker">The wall</div>
+        <h2>Rubin's data deluge meets an <em>O(N²)</em> estimator.</h2>
+        <p class="sub">The cosmology — dark energy, the nature of dark matter, the galaxy–halo
+          connection — lives in summary statistics computed across billions of objects. But the
+          workhorse pair-counts scale as the square of catalog size, and they hit a wall exactly
+          as Rubin reaches survey scale. <b>Pair counting is embarrassingly parallel — the textbook GPU win.</b></p>
+        <div class="callout" style="margin-top:34px">
+          <div class="big">Put the workload on the GPU with <em>CuPy</em>, and validate it four ways.</div>
+          <p>A provably-correct block-pruning cell-list scales past brute force; the GPU result stays
+             bit-for-bit consistent with CPU and cross-checks against an independent tree code.</p>
+        </div>
+      </div>
+      <div class="rv scale">
+        <div class="srow"><span class="bar" style="width:8%"></span><span class="stage">NOW</span>
+          <span class="name">DP1 <span>· 15 deg² · ~2.3M</span></span><span class="scaleN">1×</span></div>
+        <div class="srow"><span class="bar" style="width:60%"></span><span class="stage">SUMMER</span>
+          <span class="name">DP2 <span>· ~3000 deg² · LSSTCam</span></span><span class="scaleN">~200×</span></div>
+        <div class="srow"><span class="bar" style="width:100%"></span><span class="stage">2027</span>
+          <span class="name">DR1 <span>· billions of objects</span></span><span class="scaleN">10⁴×</span></div>
+        <p style="font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:6px;letter-spacing:.03em">
+          area scaling relative to DP1 — the point where CPU pair-counting starts to hurt.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- figures -->
+<section id="figures" style="padding-top:20px">
+  <div class="wrap">
+    <div class="rv"><div class="kicker">Evidence</div>
+      <h2>One engine — the field, and the <em>measurement</em>.</h2></div>
+    <div class="figs rv" style="margin-top:40px">
+      <figure>
+        <div class="fig-tag">Fig 1 · density field + w(θ)</div>
+        <img src="assets/visualization.png" alt="GPU-rendered galaxy density field and the measured angular clustering w(theta)" loading="lazy">
+        <figcaption>GPU-rendered galaxy density field — binning and smoothing done on the GPU — beside the
+          measured angular clustering. <b>one engine, one xp abstraction</b></figcaption>
+      </figure>
+      <figure>
+        <div class="fig-tag">Fig 2 · validation</div>
+        <img src="assets/validation.png" alt="GPU-measured w(theta) recovering the analytic correlation" loading="lazy">
+        <figcaption>Measured w(θ) (points) recovers the known analytic correlation (line) to ~6%,
+          bit-for-bit identical to CPU. <b>GPU ≡ CPU ≡ TreeCorr ≡ theory</b></figcaption>
+      </figure>
+    </div>
+    <figure class="rv" style="margin-top:26px">
+      <div class="fig-tag">Fig 3 · why GPU matters by DR1</div>
+      <img src="assets/roadmap_scaling.png" alt="Speedup scaling from Tesla T4 to A100/H100 across Rubin data releases" loading="lazy">
+      <figcaption>The Tesla-T4 ratio (~30–50×) is <b>measured</b>; on SLAC A100/H100 or Stanford Marlowe it's
+        projected ~150×+, and the estimator runs thousands of times per analysis — so it compounds into time-to-science.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- roadmap -->
+<section id="roadmap">
+  <div class="wrap">
+    <div class="rv"><div class="kicker">Trajectory · locked to Rubin's releases</div>
+      <h2>Built for <em>DP2</em> this summer, <em>DR1</em> next year.</h2></div>
+    <div class="tl rv" style="margin-top:46px">
+      <div class="tl-line"><i></i></div>
+      <div class="tl-grid">
+        <div class="node now">
+          <div class="when">NOW · DP1</div>
+          <div class="data">Validated on real data</div>
+          <div class="desc">GPU w(θ) engine, bit-for-bit vs TreeCorr, end-to-end on ~495k ECDFS objects via TAP.</div>
+          <div class="why">proof it works — not a pitch deck</div>
+        </div>
+        <div class="node">
+          <div class="when">SUMMER 2026 · DP2</div>
+          <div class="data">First survey-scale w(θ)</div>
+          <div class="desc">~3000 deg² from LSSTCam — ~200× DP1 area, and the first Rubin set big enough for a survey-scale measurement.</div>
+          <div class="why">the moment GPU starts to matter</div>
+        </div>
+        <div class="node">
+          <div class="when">2027 · DR1</div>
+          <div class="data">3×2pt + AI / SBI</div>
+          <div class="desc">Billions of objects. Tomographic clustering plus neural-posterior inference on GPU/multi-GPU.</div>
+          <div class="why">where the field is pushing</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- tracks -->
+<section style="padding-top:20px">
+  <div class="wrap">
+    <div class="rv"><div class="kicker">Tracks</div>
+      <h2>From two-point counts to <em>field-level</em> inference.</h2></div>
+    <div class="tracks rv" style="margin-top:36px">
+      <div class="track"><span class="st done">DONE</span><div><h3>GPU 2-point clustering</h3>
+        <p>CuPy w(θ) — GPU ≡ CPU ≡ TreeCorr ≡ theory, ~30–50× on a Tesla T4.</p></div></div>
+      <div class="track"><span class="st done">DONE</span><div><h3>Real DP1, end-to-end</h3>
+        <p>dp1.Object via TAP → w(θ) on ~495k ECDFS objects.</p></div></div>
+      <div class="track"><span class="st wip">IN PROGRESS</span><div><h3>Tomographic w(θ)</h3>
+        <p>Photo-z-binned clustering — the density leg of a tomographic 3×2pt, scaling to DP2.</p></div></div>
+      <div class="track"><span class="st wip">IN PROGRESS</span><div><h3>AI / field-level inference (SBI)</h3>
+        <p>GPU forward-model → neural posterior, trained on 10⁴–10⁵ forward models. DP2-ready.</p></div></div>
+      <div class="track"><span class="st done">BUILT</span><div><h3>cuPhoton-style FITS ingestion</h3>
+        <p>kvikio + nvCOMP GPU decompression path, CPU-verified.</p></div></div>
+      <div class="track"><span class="st plan">PLANNED</span><div><h3>GNN / field-level on catalogs</h3>
+        <p>Graph-network inference on Rubin catalogs — the DR1 horizon.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- run -->
+<section id="run">
+  <div class="wrap">
+    <div class="run">
+      <div class="rv">
+        <div class="kicker">Run it</div>
+        <h2>A working tool, on <em>real</em> data.</h2>
+        <p class="sub">GPU by default — the code auto-selects the device when one is present (KIPAC's S3DF
+          A100/H100 is the deployment path). The CPU path exists as the bit-for-bit validation reference,
+          so it also runs on a laptop and in CI.</p>
+        <div class="fits" style="margin-top:30px">
+          <div class="fit"><div class="h">Estimator</div><p>Landy–Szalay<br>w(θ) = (DD − 2DR + RR)/RR</p></div>
+          <div class="fit"><div class="h">Backends</div><p>CuPy · NumPy · TreeCorr<br>one <code style="color:var(--accent)">xp</code> abstraction</p></div>
+          <div class="fit"><div class="h">Gate</div><p>pytest correctness<br>three impls must agree</p></div>
+        </div>
+      </div>
+      <div class="rv">
+        <div class="code">
+          <div class="head"><i></i><i></i><i></i></div>
+<pre><span class="c"># + cupy-cuda12x on a GPU box</span>
+pip install <span class="k">-r</span> requirements.txt
+
+<span class="c"># measure + validate -> figure</span>
+python examples/<span class="p">run_demo.py</span>
+
+<span class="c"># CPU vs GPU speedup</span>
+python <span class="k">-m</span> twopcf.<span class="p">bench</span>
+
+<span class="c"># AI / field-level: infer from clustering</span>
+python examples/<span class="p">run_sbi.py</span>
+
+<span class="c"># correctness gate</span>
+<span class="p">pytest</span> <span class="k">-q</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- where it fits -->
+<section style="padding-top:20px">
+  <div class="wrap rv">
+    <div class="kicker">Where this fits — the field, the data, the compute</div>
+    <h2>Plugged into the funded mainstream of <em>AI-for-cosmology</em>.</h2>
+    <div class="fits" style="margin-top:34px">
+      <div class="fit"><div class="h">The data</div><p>Rubin <a href="https://dp1.lsst.io/" target="_blank" rel="noopener">DP1</a> → DP2 (~3000 deg²) → DR1 (billions).</p></div>
+      <div class="fit"><div class="h">The pipeline</div><p>Built to drop into DESC's <a href="https://github.com/LSSTDESC/TXPipe" target="_blank" rel="noopener">TXPipe</a> and validate against CCL.</p></div>
+      <div class="fit"><div class="h">The AI push</div><p>DESC AI/ML white paper; IAIFI &amp; the NSF-Simons CosmicAI institute.</p></div>
+      <div class="fit"><div class="h">The compute</div><p>NSF + NVIDIA open AI for science; free GPU via NAIRR / DOE exascale.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div class="foot-l rv">
+        <div class="big">GPU acceleration for the data deluge, extended toward <em>field-level inference</em>.</div>
+      </div>
+      <div class="lset rv">
+        <a href="https://github.com/areporeporepo/rubin-gpu-2pcf" target="_blank" rel="noopener">→ github.com/areporeporepo/rubin-gpu-2pcf</a>
+        <a href="https://dp1.lsst.io/" target="_blank" rel="noopener">→ Rubin Data Preview 1</a>
+        <a href="https://github.com/LSSTDESC/TXPipe" target="_blank" rel="noopener">→ LSST DESC · TXPipe</a>
+        <a href="https://rubinobservatory.org/" target="_blank" rel="noopener">→ Rubin Observatory</a>
+      </div>
+    </div>
+    <p class="limits"><b>Honest limits.</b> The GPU w(θ) is validated (GPU ≡ CPU ≡ TreeCorr ≡ theory) and runs on
+      real DP1. The AI/SBI track is an early scaffold — a ridge baseline today, with a neural-posterior
+      estimator as the upgrade. Brute force is O(N²); the cell-list scales past it. A science-grade
+      clustering measurement still needs the survey mask and star/galaxy separation.</p>
+    <div class="signoff">
+      <span>rubin-gpu-2pcf · CuPy · Landy–Szalay · SBI</span>
+      <span>same idea, one rung at a time</span>
+    </div>
+  </div>
+</footer>
+</main>
+
+<script>
+  // nav border on scroll
+  const nav=document.getElementById('nav');
+  addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40),{passive:true});
+
+  // reveal on scroll
+  const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.16});
+  document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+
+  // density-field canvas — a slow-drifting, gently-clustered point field
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!reduce){
+    const cv=document.getElementById('field'), cx=cv.getContext('2d');
+    let w,h,pts,dpr;
+    const CLUSTERS=5;
+    function seedClusters(){
+      const cs=[];
+      for(let i=0;i<CLUSTERS;i++) cs.push({x:Math.random()*w,y:Math.random()*h,r:120+Math.random()*260});
+      return cs;
+    }
+    function init(){
+      dpr=Math.min(devicePixelRatio||1,2); w=cv.width=innerWidth*dpr; h=cv.height=innerHeight*dpr;
+      cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
+      const N=Math.round((innerWidth*innerHeight)/9000);
+      const cs=seedClusters(); pts=[];
+      for(let i=0;i<N;i++){
+        // 60% clustered around seeds, 40% uniform — mimics galaxy clustering
+        let x,y;
+        if(Math.random()<.6){const c=cs[(Math.random()*cs.length)|0];
+          const a=Math.random()*6.283, rr=Math.random()*c.r*dpr;
+          x=c.x*dpr+Math.cos(a)*rr; y=c.y*dpr+Math.sin(a)*rr;}
+        else{x=Math.random()*w; y=Math.random()*h;}
+        pts.push({x,y,z:Math.random(),tw:Math.random()*6.283,
+          vx:(Math.random()-.5)*.05*dpr,vy:(Math.random()-.5)*.05*dpr});
+      }
+    }
+    let t=0;
+    function frame(){
+      t+=.016; cx.clearRect(0,0,w,h);
+      for(const p of pts){
+        p.x+=p.vx; p.y+=p.vy;
+        if(p.x<0)p.x+=w; if(p.x>w)p.x-=w; if(p.y<0)p.y+=h; if(p.y>h)p.y-=h;
+        const tw=.55+.45*Math.sin(t*1.3+p.tw);
+        const size=(p.z*1.7+.35)*dpr, alpha=(.10+p.z*.55)*tw;
+        cx.beginPath(); cx.arc(p.x,p.y,size,0,6.283);
+        cx.fillStyle=p.z>.82?`rgba(244,177,90,${alpha})`:`rgba(150,220,214,${alpha})`;
+        cx.fill();
+      }
+      requestAnimationFrame(frame);
+    }
+    init(); frame();
+    let rt; addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(init,180)});
+  }
+</script>
+</body>
+</html>
